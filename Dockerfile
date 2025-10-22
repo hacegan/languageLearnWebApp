@@ -12,7 +12,7 @@ RUN ./mvnw clean package -DskipTests
 FROM openjdk:25-jdk
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
-COPY src/main/resources/firebase-service-account.json firebase-service-account.json
+#COPY src/main/resources/firebase-service-account.json firebase-service-account.json
 ENV PORT=8080
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
