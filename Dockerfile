@@ -1,5 +1,5 @@
-# Build stage: Compile with Maven and Java 25
-FROM openjdk:25-jdk AS build
+# Build stage: Compile with Maven and Java 21
+FROM openjdk:21-jdk AS build
 WORKDIR /app
 COPY pom.xml .
 COPY src src
@@ -9,7 +9,7 @@ RUN chmod +x ./mvnw
 RUN ./mvnw clean package -DskipTests
 
 # Runtime stage: Run the JAR
-FROM openjdk:25-jdk
+FROM openjdk:21-jdk
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 #COPY src/main/resources/firebase-service-account.json firebase-service-account.json
