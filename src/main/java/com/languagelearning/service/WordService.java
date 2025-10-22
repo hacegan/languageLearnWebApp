@@ -3,9 +3,9 @@ package com.languagelearning.service;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.languagelearning.model.Word;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -13,17 +13,58 @@ import java.util.stream.Collectors;
 @Service
 public class WordService {
 
-    @Autowired
-    private Firestore firestore;
+    private final Firestore firestore;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    @Autowired
+    public WordService(Firestore firestore) {
+        this.firestore = firestore;
+        System.out.println("WordService initialized with Firestore: " + (firestore != null));
+    }
+
+    @PostConstruct
+    public void init() {
+        if (firestore != null) {
+            System.out.println("WordService: Firestore is ready");
+        } else {
+            System.err.println("WordService: Firestore is NULL!");
+        }
+    }
+
+    // Test connection method
+    public void testConnection() throws Exception {
+        if (firestore == null) {
+            throw new RuntimeException("Firestore is not initialized");
+        }
+        try {
+            // Try a simple query to test connection
+            ApiFuture<QuerySnapshot> future = firestore.collection("test").limit(1).get();
+            future.get();
+            System.out.println("Firestore connection test successful");
+        } catch (Exception e) {
+            System.err.println("Firestore connection test failed: " + e.getMessage());
+            throw e;
+        }
+    }
+
+    // Check if Firestore is available
+    private void checkFirestore() {
+        if (firestore == null) {
+            throw new RuntimeException("Firestore connection is not available. Please check your Firebase configuration.");
+        }
+    }
 
     // Mevcut kelimeleri güncelle (eksik alanları ekle)
     public void migrateExistingWords(String language) throws ExecutionException, InterruptedException {
+        checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
         ApiFuture<QuerySnapshot> future = firestore.collection(collectionName).get();
         List<QueryDocumentSnapshot> documents = future.get().getDocuments();
+
+        if (documents.isEmpty()) {
+            System.out.println("No documents found for migration in " + collectionName);
+            return;
+        }
 
         WriteBatch batch = firestore.batch();
         int batchCount = 0;
@@ -74,6 +115,8 @@ public class WordService {
         if (batchCount > 0) {
             batch.commit().get();
         }
+
+        System.out.println("Migration completed for " + collectionName + ": " + documents.size() + " documents processed");
     }
 
     private String guessCategory(String word) {
@@ -91,6 +134,7 @@ public class WordService {
     }
 
     public List<Word> getAllWords(String language) throws ExecutionException, InterruptedException {
+        checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
         ApiFuture<QuerySnapshot> future = firestore.collection(collectionName).get();
@@ -100,7 +144,7 @@ public class WordService {
                 .map(doc -> {
                     Word word = doc.toObject(Word.class);
                     word.setId(doc.getId());
-                    // Unsplash API'den resim URL'si al (kelimeye göre)
+                    // Set image URL
                     if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
                         word.setImageUrl(getImageUrl(word.getWord()));
                     }
@@ -110,46 +154,38 @@ public class WordService {
     }
 
     private String getImageUrl(String keyword) {
-        // Unsplash benzeri ücretsiz resim servisi kullan
-        // Pixabay veya Pexels API kullanılabilir
-        return "https://source.unsplash.com/400x300/?" + keyword.replace(" ", "+");
-    }
+        if (keyword == null || keyword.isEmpty()) {
+            return "";
+        }
 
-    public List<Word> getWordsByDifficulty(String language, String difficulty)
-            throws ExecutionException, InterruptedException {
-        String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
+        // Kelimeyi temizle ve URL-safe yap
+        String cleanKeyword = keyword.toLowerCase()
+                .replaceAll("[^a-zA-Z0-9\\s]", "")
+                .trim()
+                .replace(" ", "-");
 
-        Query query = firestore.collection(collectionName)
-                .whereEqualTo("difficulty", difficulty);
-
-        ApiFuture<QuerySnapshot> future = query.get();
-        List<QueryDocumentSnapshot> documents = future.get().getDocuments();
-
-        return documents.stream()
-                .map(doc -> {
-                    Word word = doc.toObject(Word.class);
-                    word.setId(doc.getId());
-                    if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
-                        word.setImageUrl(getImageUrl(word.getWord()));
-                    }
-                    return word;
-                })
-                .collect(Collectors.toList());
+        // Picsum Photos API - performanslı ve ücretsiz
+        // Her kelime için sabit bir seed kullanarak aynı resmi döndür
+        int seed = Math.abs(cleanKeyword.hashCode() % 1000);
+        return "https://picsum.photos/seed/" + seed + "/400/300";
     }
 
     public List<Word> getUnknownWords(String language) throws ExecutionException, InterruptedException {
+        checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
-        Query query = firestore.collection(collectionName)
-                .whereLessThan("correctCount", 3);
-
-        ApiFuture<QuerySnapshot> future = query.get();
+        // Firebase doesn't support != so we'll filter in memory
+        ApiFuture<QuerySnapshot> future = firestore.collection(collectionName).get();
         List<QueryDocumentSnapshot> documents = future.get().getDocuments();
 
         return documents.stream()
                 .map(doc -> {
                     Word word = doc.toObject(Word.class);
                     word.setId(doc.getId());
+                    return word;
+                })
+                .filter(word -> word.getCorrectCount() < 3)
+                .map(word -> {
                     if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
                         word.setImageUrl(getImageUrl(word.getWord()));
                     }
@@ -159,22 +195,21 @@ public class WordService {
     }
 
     public List<Word> getNewWords(String language) throws ExecutionException, InterruptedException {
+        checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
-        // studyCount alanı yoksa veya 0 ise yeni kelimedir
         ApiFuture<QuerySnapshot> future = firestore.collection(collectionName).get();
         List<QueryDocumentSnapshot> documents = future.get().getDocuments();
 
         return documents.stream()
-                .filter(doc -> {
-                    Integer studyCount = doc.getLong("studyCount") != null ?
-                            doc.getLong("studyCount").intValue() : 0;
-                    return studyCount == 0;
-                })
-                .limit(10)
                 .map(doc -> {
                     Word word = doc.toObject(Word.class);
                     word.setId(doc.getId());
+                    return word;
+                })
+                .filter(word -> word.getStudyCount() == 0)
+                .limit(10)
+                .map(word -> {
                     if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
                         word.setImageUrl(getImageUrl(word.getWord()));
                     }
@@ -185,6 +220,7 @@ public class WordService {
 
     public Word updateWordProgress(String language, String wordId, boolean isCorrect)
             throws ExecutionException, InterruptedException {
+        checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
         DocumentReference docRef = firestore.collection(collectionName).document(wordId);
@@ -209,6 +245,7 @@ public class WordService {
     }
 
     public Word addWord(String language, Word word) throws ExecutionException, InterruptedException {
+        checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
         // Varsayılan değerleri ayarla
@@ -240,6 +277,7 @@ public class WordService {
 
     public Word updateWord(String language, String wordId, Word word)
             throws ExecutionException, InterruptedException {
+        checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
         DocumentReference docRef = firestore.collection(collectionName).document(wordId);
@@ -264,6 +302,7 @@ public class WordService {
 
     public void deleteWord(String language, String wordId)
             throws ExecutionException, InterruptedException {
+        checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
         DocumentReference docRef = firestore.collection(collectionName).document(wordId);
@@ -273,6 +312,7 @@ public class WordService {
 
     public Word toggleFavorite(String language, String wordId)
             throws ExecutionException, InterruptedException {
+        checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
         DocumentReference docRef = firestore.collection(collectionName).document(wordId);
@@ -295,6 +335,7 @@ public class WordService {
 
     public List<Word> getFavoriteWords(String language)
             throws ExecutionException, InterruptedException {
+        checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
         Query query = firestore.collection(collectionName)
@@ -307,6 +348,9 @@ public class WordService {
                 .map(doc -> {
                     Word word = doc.toObject(Word.class);
                     word.setId(doc.getId());
+                    if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
+                        word.setImageUrl(getImageUrl(word.getWord()));
+                    }
                     return word;
                 })
                 .collect(Collectors.toList());

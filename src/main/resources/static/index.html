@@ -192,8 +192,10 @@
                             <!-- Word Display -->
                             <div class="text-center mb-4">
                                 <h2 id="quizWord" class="display-4 mb-3">Cargando...</h2>
-                                <button class="btn btn-outline-primary btn-sm" onclick="playAudio()">
+                                <!-- Quiz Section'daki audio button'u güncelle -->
+                                <button class="btn btn-outline-primary btn-sm" onclick="playAudio()" id="audioButton">
                                     <i class="bi bi-volume-up"></i> Dinle
+                                    <span class="spinner-border spinner-border-sm ms-2 d-none" id="audioSpinner"></span>
                                 </button>
                             </div>
 
