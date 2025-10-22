@@ -22,7 +22,6 @@ public class WordController {
     @PostConstruct
     public void init() {
         System.out.println("WordController initialized!");
-        // Migration'ı devre dışı bırak - Firebase bağlantısı sağlandıktan sonra manuel çalıştır
         System.out.println("Auto-migration disabled. Use /api/words/{language}/migrate endpoint manually.");
     }
 
@@ -39,7 +38,6 @@ public class WordController {
     public ResponseEntity<Map<String, String>> health() {
         Map<String, String> response = new HashMap<>();
         try {
-            // Firebase bağlantısını test et
             wordService.testConnection();
             response.put("status", "healthy");
             response.put("firebase", "connected");
@@ -49,6 +47,42 @@ public class WordController {
             response.put("error", e.getMessage());
         }
         return ResponseEntity.ok(response);
+    }
+
+    // Pagination endpoint'i ekle
+    @GetMapping("/{language}/paginated")
+    public ResponseEntity<?> getWordsPaginated(
+            @PathVariable String language,
+            @RequestParam(required = false) String lastWordId,
+            @RequestParam(defaultValue = "20") int limit) {
+        System.out.println("Getting paginated words for language: " + language);
+        try {
+            Map<String, Object> result = wordService.getWordsPaginated(language, lastWordId, limit);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            System.err.println("Error getting paginated words: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // Lazy loading endpoint'i
+    @GetMapping("/{language}/lazy")
+    public ResponseEntity<?> getWordsLazy(
+            @PathVariable String language,
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "20") int limit) {
+        System.out.println("Getting lazy loaded words for language: " + language);
+        try {
+            List<Word> words = wordService.getWordsLazy(language, offset, limit);
+            return ResponseEntity.ok(words);
+        } catch (Exception e) {
+            System.err.println("Error getting lazy words: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", e.getMessage()));
+        }
     }
 
     @GetMapping("/{language}")
@@ -125,7 +159,6 @@ public class WordController {
         } catch (Exception e) {
             e.printStackTrace();
 
-            // Return default statistics on error
             Map<String, Object> defaultStats = new HashMap<>();
             defaultStats.put("total", 0);
             defaultStats.put("learned", 0);
@@ -211,20 +244,4 @@ public class WordController {
         }
     }
 
-    @PostMapping("/{language}/migrate")
-    public ResponseEntity<Map<String, String>> migrateWords(@PathVariable String language) {
-        System.out.println("Migrating words for language: " + language);
-        Map<String, String> response = new HashMap<>();
-        try {
-            wordService.migrateExistingWords(language);
-            response.put("status", "success");
-            response.put("message", "Migration completed successfully");
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            e.printStackTrace();
-            response.put("status", "error");
-            response.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
-        }
-    }
 }

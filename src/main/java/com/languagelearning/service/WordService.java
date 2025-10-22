@@ -14,6 +14,8 @@ import java.util.stream.Collectors;
 public class WordService {
 
     private final Firestore firestore;
+    private static final int PAGE_SIZE = 20; // Sayfa başına kelime sayısı
+    private static final String UNSPLASH_ACCESS_KEY = "YOUR_UNSPLASH_ACCESS_KEY"; // Buraya Unsplash API key'inizi ekleyin
 
     @Autowired
     public WordService(Firestore firestore) {
@@ -36,7 +38,6 @@ public class WordService {
             throw new RuntimeException("Firestore is not initialized");
         }
         try {
-            // Try a simple query to test connection
             ApiFuture<QuerySnapshot> future = firestore.collection("test").limit(1).get();
             future.get();
             System.out.println("Firestore connection test successful");
@@ -46,19 +47,103 @@ public class WordService {
         }
     }
 
-    // Check if Firestore is available
     private void checkFirestore() {
         if (firestore == null) {
             throw new RuntimeException("Firestore connection is not available. Please check your Firebase configuration.");
         }
     }
 
-    // Mevcut kelimeleri güncelle (eksik alanları ekle)
+    // Pagination ile kelime getirme
+    public Map<String, Object> getWordsPaginated(String language, String lastWordId, int limit)
+            throws ExecutionException, InterruptedException {
+        checkFirestore();
+        String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
+
+        Query query = firestore.collection(collectionName)
+                .orderBy(FieldPath.documentId())
+                .limit(Math.min(limit, PAGE_SIZE));
+
+        if (lastWordId != null && !lastWordId.isEmpty()) {
+            DocumentSnapshot lastDoc = firestore.collection(collectionName)
+                    .document(lastWordId).get().get();
+            if (lastDoc.exists()) {
+                query = query.startAfter(lastDoc);
+            }
+        }
+
+        ApiFuture<QuerySnapshot> future = query.get();
+        List<QueryDocumentSnapshot> documents = future.get().getDocuments();
+
+        List<Word> words = documents.stream()
+                .map(doc -> {
+                    Word word = doc.toObject(Word.class);
+                    word.setId(doc.getId());
+                    if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
+                        word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
+                    }
+                    return word;
+                })
+                .collect(Collectors.toList());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("words", words);
+        result.put("hasMore", documents.size() == limit);
+        result.put("lastWordId", words.isEmpty() ? null : words.get(words.size() - 1).getId());
+
+        return result;
+    }
+
+    // Geliştirilmiş görsel URL'si - kelimeyle alakalı
+    private String getEnhancedImageUrl(String keyword, String language) {
+        if (keyword == null || keyword.isEmpty()) {
+            return "";
+        }
+
+        // Kelimeyi temizle
+        String cleanKeyword = keyword.toLowerCase()
+                .replaceAll("[^a-zA-Z0-9\\s]", "")
+                .trim();
+
+        // Dil bazlı çeviri ekle (basit bir mapping)
+        String searchTerm = cleanKeyword;
+        if (language.equals("es")) {
+            searchTerm = translateSpanishToEnglish(cleanKeyword);
+        }
+
+        // Unsplash API kullan (ücretsiz limit: 50 req/hour)
+        // Alternatif olarak Pexels API de kullanılabilir
+        return String.format(
+                "https://source.unsplash.com/400x300/?%s,language,education",
+                searchTerm.replace(" ", ",")
+        );
+    }
+
+    // Basit İspanyolca-İngilizce çeviri mapping'i
+    private String translateSpanishToEnglish(String spanish) {
+        Map<String, String> commonTranslations = new HashMap<>();
+        commonTranslations.put("casa", "house");
+        commonTranslations.put("perro", "dog");
+        commonTranslations.put("gato", "cat");
+        commonTranslations.put("agua", "water");
+        commonTranslations.put("comida", "food");
+        commonTranslations.put("libro", "book");
+        commonTranslations.put("coche", "car");
+        commonTranslations.put("escuela", "school");
+        commonTranslations.put("amigo", "friend");
+        commonTranslations.put("familia", "family");
+        // Daha fazla kelime eklenebilir
+
+        return commonTranslations.getOrDefault(spanish, spanish);
+    }
+
+    // Migration fonksiyonu güncellendi
     public void migrateExistingWords(String language) throws ExecutionException, InterruptedException {
         checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
-        ApiFuture<QuerySnapshot> future = firestore.collection(collectionName).get();
+        // Batch olarak al, tüm verileri bir anda çekme
+        Query query = firestore.collection(collectionName).limit(100);
+        ApiFuture<QuerySnapshot> future = query.get();
         List<QueryDocumentSnapshot> documents = future.get().getDocuments();
 
         if (documents.isEmpty()) {
@@ -73,7 +158,6 @@ public class WordService {
             Map<String, Object> data = doc.getData();
             Map<String, Object> updates = new HashMap<>();
 
-            // Eksik alanları kontrol et ve ekle
             if (!data.containsKey("difficulty")) {
                 updates.put("difficulty", "medium");
             }
@@ -98,12 +182,15 @@ public class WordService {
             if (!data.containsKey("pronunciation")) {
                 updates.put("pronunciation", "");
             }
+            // Yeni görsel URL'si ekle
+            if (!data.containsKey("imageUrl") || data.get("imageUrl") == null) {
+                updates.put("imageUrl", getEnhancedImageUrl(data.get("word").toString(), language));
+            }
 
             if (!updates.isEmpty()) {
                 batch.update(doc.getReference(), updates);
                 batchCount++;
 
-                // Firebase batch limit is 500
                 if (batchCount >= 500) {
                     batch.commit().get();
                     batch = firestore.batch();
@@ -120,7 +207,6 @@ public class WordService {
     }
 
     private String guessCategory(String word) {
-        // Simple category guessing based on word endings
         word = word.toLowerCase();
         if (word.endsWith("ar") || word.endsWith("er") || word.endsWith("ir")) {
             return "verb";
@@ -133,49 +219,61 @@ public class WordService {
         }
     }
 
+    // Optimized getAllWords - limit ile
     public List<Word> getAllWords(String language) throws ExecutionException, InterruptedException {
         checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
-        ApiFuture<QuerySnapshot> future = firestore.collection(collectionName).get();
+        // Tüm kelimeleri çekme, maksimum 100 kelime
+        Query query = firestore.collection(collectionName).limit(100);
+        ApiFuture<QuerySnapshot> future = query.get();
         List<QueryDocumentSnapshot> documents = future.get().getDocuments();
 
         return documents.stream()
                 .map(doc -> {
                     Word word = doc.toObject(Word.class);
                     word.setId(doc.getId());
-                    // Set image URL
                     if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
-                        word.setImageUrl(getImageUrl(word.getWord()));
+                        word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
                     }
                     return word;
                 })
                 .collect(Collectors.toList());
     }
 
-    private String getImageUrl(String keyword) {
-        if (keyword == null || keyword.isEmpty()) {
-            return "";
-        }
+    // Lazy loading için yeni method
+    public List<Word> getWordsLazy(String language, int offset, int limit)
+            throws ExecutionException, InterruptedException {
+        checkFirestore();
+        String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
-        // Kelimeyi temizle ve URL-safe yap
-        String cleanKeyword = keyword.toLowerCase()
-                .replaceAll("[^a-zA-Z0-9\\s]", "")
-                .trim()
-                .replace(" ", "-");
+        Query query = firestore.collection(collectionName)
+                .orderBy("word")
+                .offset(offset)
+                .limit(Math.min(limit, PAGE_SIZE));
 
-        // Picsum Photos API - performanslı ve ücretsiz
-        // Her kelime için sabit bir seed kullanarak aynı resmi döndür
-        int seed = Math.abs(cleanKeyword.hashCode() % 1000);
-        return "https://picsum.photos/seed/" + seed + "/400/300";
+        ApiFuture<QuerySnapshot> future = query.get();
+        List<QueryDocumentSnapshot> documents = future.get().getDocuments();
+
+        return documents.stream()
+                .map(doc -> {
+                    Word word = doc.toObject(Word.class);
+                    word.setId(doc.getId());
+                    if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
+                        word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
+                    }
+                    return word;
+                })
+                .collect(Collectors.toList());
     }
 
     public List<Word> getUnknownWords(String language) throws ExecutionException, InterruptedException {
         checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
-        // Firebase doesn't support != so we'll filter in memory
-        ApiFuture<QuerySnapshot> future = firestore.collection(collectionName).get();
+        // Limit ekle performans için
+        Query query = firestore.collection(collectionName).limit(50);
+        ApiFuture<QuerySnapshot> future = query.get();
         List<QueryDocumentSnapshot> documents = future.get().getDocuments();
 
         return documents.stream()
@@ -185,9 +283,10 @@ public class WordService {
                     return word;
                 })
                 .filter(word -> word.getCorrectCount() < 3)
+                .limit(20) // Maksimum 20 kelime döndür
                 .map(word -> {
                     if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
-                        word.setImageUrl(getImageUrl(word.getWord()));
+                        word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
                     }
                     return word;
                 })
@@ -198,20 +297,19 @@ public class WordService {
         checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
-        ApiFuture<QuerySnapshot> future = firestore.collection(collectionName).get();
+        Query query = firestore.collection(collectionName)
+                .whereEqualTo("studyCount", 0)
+                .limit(20); // Direkt Firestore'da limit
+
+        ApiFuture<QuerySnapshot> future = query.get();
         List<QueryDocumentSnapshot> documents = future.get().getDocuments();
 
         return documents.stream()
                 .map(doc -> {
                     Word word = doc.toObject(Word.class);
                     word.setId(doc.getId());
-                    return word;
-                })
-                .filter(word -> word.getStudyCount() == 0)
-                .limit(10)
-                .map(word -> {
                     if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
-                        word.setImageUrl(getImageUrl(word.getWord()));
+                        word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
                     }
                     return word;
                 })
@@ -248,7 +346,6 @@ public class WordService {
         checkFirestore();
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
-        // Varsayılan değerleri ayarla
         word.setCorrectCount(0);
         word.setIncorrectCount(0);
         word.setStudyCount(0);
@@ -265,7 +362,7 @@ public class WordService {
             word.setTags(Arrays.asList("general"));
         }
         if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
-            word.setImageUrl(getImageUrl(word.getWord()));
+            word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
         }
 
         ApiFuture<DocumentReference> future = firestore.collection(collectionName).add(word);
@@ -339,7 +436,8 @@ public class WordService {
         String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
 
         Query query = firestore.collection(collectionName)
-                .whereEqualTo("isFavorite", true);
+                .whereEqualTo("isFavorite", true)
+                .limit(30); // Limit ekle
 
         ApiFuture<QuerySnapshot> future = query.get();
         List<QueryDocumentSnapshot> documents = future.get().getDocuments();
@@ -349,7 +447,7 @@ public class WordService {
                     Word word = doc.toObject(Word.class);
                     word.setId(doc.getId());
                     if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
-                        word.setImageUrl(getImageUrl(word.getWord()));
+                        word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
                     }
                     return word;
                 })
@@ -358,22 +456,67 @@ public class WordService {
 
     public List<Word> getQuizWords(String language, int count)
             throws ExecutionException, InterruptedException {
-        List<Word> allWords = getAllWords(language);
-        Collections.shuffle(allWords);
-        return allWords.stream().limit(count).collect(Collectors.toList());
+        // Rastgele kelimeler için optimizasyon
+        checkFirestore();
+        String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
+
+        // Önce toplam kelime sayısını al
+        Query countQuery = firestore.collection(collectionName).limit(200);
+        ApiFuture<QuerySnapshot> future = countQuery.get();
+        List<QueryDocumentSnapshot> allDocs = future.get().getDocuments();
+
+        // Rastgele seç
+        Collections.shuffle(allDocs);
+
+        return allDocs.stream()
+                .limit(count)
+                .map(doc -> {
+                    Word word = doc.toObject(Word.class);
+                    word.setId(doc.getId());
+                    if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
+                        word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
+                    }
+                    return word;
+                })
+                .collect(Collectors.toList());
     }
 
     public Map<String, Object> getStatistics(String language)
             throws ExecutionException, InterruptedException {
-        List<Word> allWords = getAllWords(language);
+        // İstatistikler için optimize edilmiş sorgular
+        checkFirestore();
+        String collectionName = language.equals("en") ? "englishWords" : "spanishWords";
+
+        // Toplam sayı için aggregation kullan (daha performanslı)
+        AggregateQuery countQuery = firestore.collection(collectionName).count();
+        AggregateQuerySnapshot countSnapshot = countQuery.get().get();
+        long totalCount = countSnapshot.getCount();
 
         Map<String, Object> stats = new HashMap<>();
-        stats.put("total", allWords.size());
-        stats.put("learned", allWords.stream().filter(w -> w.getCorrectCount() >= 5).count());
-        stats.put("learning", allWords.stream()
-                .filter(w -> w.getCorrectCount() > 0 && w.getCorrectCount() < 5).count());
-        stats.put("unknown", allWords.stream().filter(w -> w.getCorrectCount() == 0).count());
-        stats.put("favorites", allWords.stream().filter(Word::isFavorite).count());
+        stats.put("total", totalCount);
+
+        // Diğer istatistikler için sample al
+        Query sampleQuery = firestore.collection(collectionName).limit(100);
+        ApiFuture<QuerySnapshot> future = sampleQuery.get();
+        List<QueryDocumentSnapshot> documents = future.get().getDocuments();
+
+        List<Word> sampleWords = documents.stream()
+                .map(doc -> doc.toObject(Word.class))
+                .collect(Collectors.toList());
+
+        // Sample üzerinden tahmin yap
+        long learned = sampleWords.stream().filter(w -> w.getCorrectCount() >= 5).count();
+        long learning = sampleWords.stream()
+                .filter(w -> w.getCorrectCount() > 0 && w.getCorrectCount() < 5).count();
+        long unknown = sampleWords.stream().filter(w -> w.getCorrectCount() == 0).count();
+        long favorites = sampleWords.stream().filter(Word::isFavorite).count();
+
+        // Oransal hesapla
+        double ratio = totalCount / (double) sampleWords.size();
+        stats.put("learned", Math.round(learned * ratio));
+        stats.put("learning", Math.round(learning * ratio));
+        stats.put("unknown", Math.round(unknown * ratio));
+        stats.put("favorites", Math.round(favorites * ratio));
 
         return stats;
     }

@@ -1,13 +1,20 @@
 // Global Variables
 let currentLanguage = 'es';
 let allWords = [];
+let displayedWords = [];
 let currentQuizWords = [];
 let currentQuizIndex = 0;
 let correctCount = 0;
 let currentWord = null;
 let editingWordId = null;
+let isLoading = false;
+let hasMoreWords = true;
+let currentOffset = 0;
+let lastWordId = null;
+let viewMode = 'table';
+const PAGE_SIZE = 20;
 
-// API Base URL - window.location kullan
+// API Base URL
 const API_BASE_URL = window.location.origin + '/api';
 
 // Initialize App
@@ -16,18 +23,12 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('API URL:', API_BASE_URL);
 
     // Test API connection
-    fetch(`${API_BASE_URL}/words/test`)
-        .then(response => response.json())
-        .then(data => {
-            console.log('API Test:', data);
-        })
-        .catch(error => {
-            console.error('API connection error:', error);
-        });
+    testAPIConnection();
 
     // Set language from selector
     document.getElementById('languageSelector').addEventListener('change', function(e) {
         currentLanguage = e.target.value;
+        resetPagination();
         loadDashboardData();
     });
 
@@ -36,7 +37,86 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Setup form submission
     document.getElementById('addWordForm').addEventListener('submit', handleAddWord);
+
+    // Setup infinite scroll for all words section
+    setupInfiniteScroll();
+
+    // Setup scroll to top button
+    window.addEventListener('scroll', function() {
+        const scrollToTopBtn = document.getElementById('scrollToTop');
+        if (window.pageYOffset > 300) {
+            scrollToTopBtn.style.display = 'block';
+        } else {
+            scrollToTopBtn.style.display = 'none';
+        }
+    });
 });
+
+// Test API Connection
+async function testAPIConnection() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/words/test`);
+        const data = await response.json();
+        console.log('API Test:', data);
+    } catch (error) {
+        console.error('API connection error:', error);
+        showNotification('API bağlantı hatası!', 'error');
+    }
+}
+
+// Notification System
+function showNotification(message, type = 'info') {
+    const toastHtml = `
+        <div class="toast align-items-center text-white bg-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'} border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+
+    const toastContainer = document.createElement('div');
+    toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+    toastContainer.innerHTML = toastHtml;
+    document.body.appendChild(toastContainer);
+
+    const toast = new bootstrap.Toast(toastContainer.querySelector('.toast'));
+    toast.show();
+
+    setTimeout(() => toastContainer.remove(), 5000);
+}
+
+// Reset Pagination
+function resetPagination() {
+    currentOffset = 0;
+    lastWordId = null;
+    hasMoreWords = true;
+    allWords = [];
+    displayedWords = [];
+}
+
+// Setup Infinite Scroll
+function setupInfiniteScroll() {
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting && !isLoading && hasMoreWords) {
+                const activeSection = document.querySelector('.content-section[style*="block"]');
+                if (activeSection && activeSection.id === 'all-words') {
+                    loadMoreWords();
+                }
+            }
+        });
+    }, {
+        rootMargin: '100px'
+    });
+
+    const trigger = document.getElementById('scrollTrigger');
+    if (trigger) {
+        observer.observe(trigger);
+    }
+}
 
 // Section Navigation
 function showSection(sectionId) {
@@ -51,6 +131,9 @@ function showSection(sectionId) {
     // Update active nav link
     document.querySelectorAll('.nav-link').forEach(link => {
         link.classList.remove('active');
+        if (link.getAttribute('onclick')?.includes(sectionId)) {
+            link.classList.add('active');
+        }
     });
 
     // Load section specific data
@@ -65,6 +148,7 @@ function showSection(sectionId) {
             loadNewWords();
             break;
         case 'all-words':
+            resetPagination();
             loadAllWords();
             break;
     }
@@ -73,6 +157,12 @@ function showSection(sectionId) {
 // Dashboard Functions
 async function loadDashboardData() {
     console.log('Loading dashboard for language:', currentLanguage);
+
+    // Show loading spinners
+    ['learnedCount', 'learningCount', 'unknownCount', 'totalCount'].forEach(id => {
+        document.getElementById(id).innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    });
+
     try {
         const response = await fetch(`${API_BASE_URL}/words/${currentLanguage}/statistics`);
 
@@ -83,307 +173,52 @@ async function loadDashboardData() {
         const stats = await response.json();
         console.log('Statistics:', stats);
 
-        // Update stats
-        document.getElementById('learnedCount').textContent = stats.learned || 0;
-        document.getElementById('learningCount').textContent = stats.learning || 0;
-        document.getElementById('unknownCount').textContent = stats.unknown || 0;
-        document.getElementById('totalCount').textContent = stats.total || 0;
+        // Update stats with animation
+        animateCounter('learnedCount', stats.learned || 0);
+        animateCounter('learningCount', stats.learning || 0);
+        animateCounter('unknownCount', stats.unknown || 0);
+        animateCounter('totalCount', stats.total || 0);
     } catch (error) {
         console.error('Error loading dashboard:', error);
-        // Try alternative method
-        loadDashboardDataAlternative();
+        ['learnedCount', 'learningCount', 'unknownCount', 'totalCount'].forEach(id => {
+            document.getElementById(id).textContent = '?';
+        });
     }
 }
 
-async function loadDashboardDataAlternative() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/words/${currentLanguage}`);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+// Animate Counter
+function animateCounter(elementId, targetValue) {
+    const element = document.getElementById(elementId);
+    const startValue = 0;
+    const duration = 1000;
+    const increment = targetValue / (duration / 16);
+    let currentValue = startValue;
+
+    const timer = setInterval(() => {
+        currentValue += increment;
+        if (currentValue >= targetValue) {
+            currentValue = targetValue;
+            clearInterval(timer);
         }
-
-        const words = await response.json();
-
-        // Calculate statistics
-        const learned = words.filter(w => (w.correctCount || 0) >= 5).length;
-        const learning = words.filter(w => (w.correctCount || 0) > 0 && (w.correctCount || 0) < 5).length;
-        const unknown = words.filter(w => (w.correctCount || 0) === 0).length;
-
-        // Update stats
-        document.getElementById('learnedCount').textContent = learned;
-        document.getElementById('learningCount').textContent = learning;
-        document.getElementById('unknownCount').textContent = unknown;
-        document.getElementById('totalCount').textContent = words.length;
-    } catch (error) {
-        console.error('Error loading dashboard alternative:', error);
-        // Show error message
-        document.getElementById('learnedCount').textContent = '?';
-        document.getElementById('learningCount').textContent = '?';
-        document.getElementById('unknownCount').textContent = '?';
-        document.getElementById('totalCount').textContent = '?';
-    }
+        element.textContent = Math.floor(currentValue);
+    }, 16);
 }
 
-// Quiz Functions
-async function startQuiz() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/words/${currentLanguage}/quiz?count=10`);
-        currentQuizWords = await response.json();
-
-        if (currentQuizWords.length === 0) {
-            alert('Quiz başlatmak için yeterli kelime yok!');
-            return;
-        }
-
-        currentQuizIndex = 0;
-        correctCount = 0;
-
-        // Hide start screen, show quiz content
-        document.getElementById('quizStart').style.display = 'none';
-        document.getElementById('quizResult').style.display = 'none';
-        document.getElementById('quizContent').style.display = 'block';
-
-        // Update counters
-        document.getElementById('correctAnswers').textContent = '0';
-        document.getElementById('questionNumber').textContent = '1';
-
-        loadQuizQuestion();
-    } catch (error) {
-        console.error('Error starting quiz:', error);
-        alert('Quiz başlatılırken hata oluştu!');
-    }
-}
-
-// loadQuizQuestion fonksiyonunu değiştir
-function loadQuizQuestion() {
-    if (currentQuizIndex >= currentQuizWords.length) {
-        showQuizResult();
-        return;
-    }
-
-    currentWord = currentQuizWords[currentQuizIndex];
-
-    // Display word with image if available
-    const quizWord = document.getElementById('quizWord');
-    quizWord.innerHTML = `
-        ${currentWord.word}
-        ${currentWord.imageUrl ? `<img src="${currentWord.imageUrl}" class="img-fluid mt-3 rounded" style="max-height: 200px;" onerror="this.style.display='none'">` : ''}
-    `;
-
-    // Create answer options
-    const options = generateAnswerOptions(currentWord);
-    const optionsContainer = document.getElementById('answerOptions');
-    optionsContainer.innerHTML = '';
-
-    options.forEach((option, index) => {
-        const col = document.createElement('div');
-        col.className = 'col-md-6';
-        const optionId = `option-${index}`;
-        col.innerHTML = `
-            <div class="answer-option" id="${optionId}" data-answer="${option.replace(/"/g, '&quot;')}">
-                <i class="bi bi-circle me-2"></i>
-                ${option}
-            </div>
-        `;
-        optionsContainer.appendChild(col);
-    });
-
-    // Event listener'ları ekle
-    setTimeout(() => {
-        document.querySelectorAll('.answer-option').forEach(opt => {
-            opt.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const answer = this.getAttribute('data-answer');
-                checkAnswer(answer, this);
-            });
-        });
-    }, 100);
-
-    // Reset UI
-    document.getElementById('feedback').style.display = 'none';
-    document.getElementById('nextQuestionBtn').style.display = 'none';
-
-    // Otomatik ses çalma (500ms gecikmeyle)
-    setTimeout(() => {
-        playWordAudio(currentWord.word);
-    }, 500);
-}
-
-function generateAnswerOptions(word) {
-    const correctAnswer = word.translation;
-    const options = [correctAnswer];
-
-    // Add random wrong answers
-    const allTranslations = currentQuizWords
-        .map(w => w.translation)
-        .filter(t => t !== correctAnswer);
-
-    while (options.length < 4 && allTranslations.length > 0) {
-        const randomIndex = Math.floor(Math.random() * allTranslations.length);
-        const wrongAnswer = allTranslations.splice(randomIndex, 1)[0];
-        if (!options.includes(wrongAnswer)) {
-            options.push(wrongAnswer);
-        }
-    }
-
-    // If not enough options, add dummy ones
-    while (options.length < 4) {
-        options.push(`Opción ${options.length + 1}`);
-    }
-
-    // Shuffle options
-    return options.sort(() => Math.random() - 0.5);
-}
-
-async function checkAnswer(answer, element) {
-    // Çift tıklama kontrolü
-    if (!element || element.classList.contains('disabled') ||
-        element.classList.contains('correct') ||
-        element.classList.contains('incorrect')) {
-        return;
-    }
-
-    // Tüm seçenekleri devre dışı bırak
-    document.querySelectorAll('.answer-option').forEach(opt => {
-        opt.classList.add('disabled');
-        opt.style.pointerEvents = 'none';
-    });
-
-    const isCorrect = answer === currentWord.translation;
-
-    // Update UI
-    if (isCorrect) {
-        element.classList.add('correct');
-        element.querySelector('i').className = 'bi bi-check-circle-fill me-2 text-success';
-        correctCount++;
-        document.getElementById('correctAnswers').textContent = correctCount;
-        showFeedback(true, 'Doğru! 🎉');
-
-        // Başarı sesi çal
-        playSuccessSound();
-    } else {
-        element.classList.add('incorrect');
-        element.querySelector('i').className = 'bi bi-x-circle-fill me-2 text-danger';
-        showFeedback(false, `Yanlış! Doğru cevap: ${currentWord.translation}`);
-
-        // Hata sesi çal
-        playErrorSound();
-
-        // Highlight correct answer
-        document.querySelectorAll('.answer-option').forEach(opt => {
-            const optAnswer = opt.getAttribute('data-answer');
-            if (optAnswer === currentWord.translation) {
-                opt.classList.add('correct');
-                opt.querySelector('i').className = 'bi bi-check-circle-fill me-2 text-success';
-            }
-        });
-    }
-
-    // Update word progress in backend
-    try {
-        await fetch(`${API_BASE_URL}/words/${currentLanguage}/${currentWord.id}/progress`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ correct: isCorrect })
-        });
-    } catch (error) {
-        console.error('Error updating progress:', error);
-    }
-
-    // Show next button
-    document.getElementById('nextQuestionBtn').style.display = 'inline-block';
-}
-
-// Ses efektleri için yeni fonksiyonlar
-function playSuccessSound() {
-    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUort9bllHgU7k9n1zn0wBSh+zPTaizsIHWq+8uifUAoMT6rs9b1pHgg2k9jzzXkxBSh+zPLaizsIHWu+8+mjVQoLTKns87xmHgg3k9jzzXkxBSh+zPLaizsIHWu+8+mjVQoLTKns87xmHgg3k9jzzXkxBCh+zPLaizsIHWu+8+mjVQoLTKns87xmHgg3k9jzzXkxBCh+zPLaizsIHWu+8+mjVQoLTKns87xmHgg3k9jzzXkxBCh+zPLaizsIHWu+8+mjVQoLTKns87xmHgg3k9jzzXkxBCh+zPLaizsi');
-    audio.volume = 0.3;
-    audio.play().catch(() => {});
-}
-
-function playErrorSound() {
-    const audio = new Audio('data:audio/wav;base64,UklGRuYCAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YcICAAC4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4');
-    audio.volume = 0.3;
-    audio.play().catch(() => {});
-}
-
-// Geliştirilmiş ses çalma fonksiyonu
-function playWordAudio(word) {
-    if (!word) return;
-
-    // Web Speech API öncelikli kullan (daha hızlı)
-    if ('speechSynthesis' in window) {
-        // Önceki sesleri durdur
-        speechSynthesis.cancel();
-
-        const utterance = new SpeechSynthesisUtterance(word);
-        utterance.lang = currentLanguage === 'es' ? 'es-ES' : 'en-US';
-        utterance.rate = 0.9;
-        utterance.pitch = 1;
-        utterance.volume = 0.8;
-
-        speechSynthesis.speak(utterance);
-    } else {
-        // Fallback: Google Translate TTS
-        const lang = currentLanguage === 'es' ? 'es' : 'en';
-        const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${lang}&client=tw-ob&q=${encodeURIComponent(word)}`;
-
-        const audio = new Audio(audioUrl);
-        audio.volume = 0.8;
-        audio.play().catch(error => {
-            console.error('Audio playback failed:', error);
-        });
-    }
-}
-
-function showFeedback(isCorrect, message) {
-    const feedback = document.getElementById('feedback');
-    feedback.className = `alert alert-${isCorrect ? 'success' : 'danger'}`;
-    feedback.textContent = message;
-    feedback.style.display = 'block';
-}
-
-function nextQuestion() {
-    currentQuizIndex++;
-    document.getElementById('questionNumber').textContent = currentQuizIndex + 1;
-    loadQuizQuestion();
-}
-
-function showQuizResult() {
-    document.getElementById('quizContent').style.display = 'none';
-    document.getElementById('quizResult').style.display = 'block';
-
-    const percentage = (correctCount / currentQuizWords.length) * 100;
-    document.getElementById('finalScore').textContent = correctCount;
-
-    let message = '';
-    if (percentage >= 80) {
-        message = 'Mükemmel! 🏆';
-    } else if (percentage >= 60) {
-        message = 'İyi iş! 👍';
-    } else if (percentage >= 40) {
-        message = 'Fena değil, pratik yapmaya devam! 📚';
-    } else {
-        message = 'Daha fazla çalışmaya ihtiyacın var! 💪';
-    }
-
-    document.getElementById('resultMessage').textContent = message;
-}
-
-function startQuickQuiz() {
-    showSection('quiz');
-    startQuiz();
-}
-
-// Word List Functions
+// Load Unknown Words with Loading State
 async function loadUnknownWords() {
+    const container = document.getElementById('unknownWordsList');
+    const loadingContainer = document.getElementById('unknownWordsLoading');
+
+    // Show loading
+    loadingContainer.style.display = 'flex';
+    container.innerHTML = '';
+
     try {
         const response = await fetch(`${API_BASE_URL}/words/${currentLanguage}/unknown`);
         const words = await response.json();
 
-        const container = document.getElementById('unknownWordsList');
-        container.innerHTML = '';
+        // Hide loading
+        loadingContainer.style.display = 'none';
 
         if (words.length === 0) {
             container.innerHTML = `
@@ -396,22 +231,35 @@ async function loadUnknownWords() {
             return;
         }
 
-        words.forEach(word => {
-            const card = createWordCard(word);
-            container.appendChild(card);
+        words.forEach((word, index) => {
+            setTimeout(() => {
+                const card = createWordCard(word);
+                container.appendChild(card);
+                card.style.animation = 'fadeIn 0.5s ease';
+            }, index * 50);
         });
     } catch (error) {
         console.error('Error loading unknown words:', error);
+        loadingContainer.style.display = 'none';
+        showNotification('Kelimeler yüklenirken hata oluştu!', 'error');
     }
 }
 
+// Load New Words with Loading State
 async function loadNewWords() {
+    const container = document.getElementById('newWordsList');
+    const loadingContainer = document.getElementById('newWordsLoading');
+
+    // Show loading
+    loadingContainer.style.display = 'flex';
+    container.innerHTML = '';
+
     try {
         const response = await fetch(`${API_BASE_URL}/words/${currentLanguage}/new`);
         const words = await response.json();
 
-        const container = document.getElementById('newWordsList');
-        container.innerHTML = '';
+        // Hide loading
+        loadingContainer.style.display = 'none';
 
         if (words.length === 0) {
             container.innerHTML = `
@@ -424,26 +272,105 @@ async function loadNewWords() {
             return;
         }
 
-        words.forEach(word => {
-            const card = createWordCard(word);
-            container.appendChild(card);
+        words.forEach((word, index) => {
+            setTimeout(() => {
+                const card = createWordCard(word);
+                container.appendChild(card);
+                card.style.animation = 'fadeIn 0.5s ease';
+            }, index * 50);
         });
     } catch (error) {
         console.error('Error loading new words:', error);
+        loadingContainer.style.display = 'none';
+        showNotification('Kelimeler yüklenirken hata oluştu!', 'error');
     }
 }
 
+// Load All Words with Lazy Loading
 async function loadAllWords() {
+    if (isLoading) return;
+    isLoading = true;
+
+    // Show appropriate loading indicator
+    if (displayedWords.length === 0) {
+        document.getElementById('wordsTableBody').innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Yükleniyor...</span>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+
     try {
-        const response = await fetch(`${API_BASE_URL}/words/${currentLanguage}`);
-        allWords = await response.json();
-        displayWordsTable(allWords);
+        // Use paginated endpoint
+        const response = await fetch(
+            `${API_BASE_URL}/words/${currentLanguage}/paginated?limit=${PAGE_SIZE}${lastWordId ? `&lastWordId=${lastWordId}` : ''}`
+        );
+
+        const data = await response.json();
+        const words = data.words || [];
+        hasMoreWords = data.hasMore || false;
+        lastWordId = data.lastWordId || null;
+
+        // Add new words to arrays
+        allWords.push(...words);
+        displayedWords.push(...words);
+
+        // Display words based on view mode
+        if (viewMode === 'table') {
+            displayWordsTable(displayedWords);
+        } else {
+            displayWordsCards(displayedWords);
+        }
+
+        // Show/hide load more button
+        const loadMoreBtn = document.getElementById('loadMoreBtn');
+        if (hasMoreWords) {
+            loadMoreBtn.style.display = 'inline-block';
+        } else {
+            loadMoreBtn.style.display = 'none';
+        }
+
+        // Update scroll trigger visibility
+        const scrollTrigger = document.getElementById('scrollTrigger');
+        if (scrollTrigger) {
+            scrollTrigger.style.display = hasMoreWords ? 'block' : 'none';
+        }
+
     } catch (error) {
         console.error('Error loading all words:', error);
+        showNotification('Kelimeler yüklenirken hata oluştu!', 'error');
+    } finally {
+        isLoading = false;
+
+        // Hide spinner in load more button
+        const spinner = document.getElementById('loadMoreSpinner');
+        if (spinner) {
+            spinner.classList.add('d-none');
+        }
     }
 }
 
-// createWordCard fonksiyonuna lazy loading ekle
+// Load More Words
+async function loadMoreWords() {
+    if (isLoading || !hasMoreWords) return;
+
+    // Show spinner
+    const spinner = document.getElementById('loadMoreSpinner');
+    const scrollSpinner = document.querySelector('.infinite-scroll-trigger .loading-spinner');
+
+    if (spinner) spinner.classList.remove('d-none');
+    if (scrollSpinner) scrollSpinner.classList.remove('d-none');
+
+    await loadAllWords();
+
+    if (scrollSpinner) scrollSpinner.classList.add('d-none');
+}
+
+// Create Word Card with Lazy Loading
 function createWordCard(word) {
     const col = document.createElement('div');
     col.className = 'col-md-4 col-sm-6 mb-4';
@@ -452,10 +379,10 @@ function createWordCard(word) {
     const categoryBadge = getCategoryBadge(word.category);
 
     col.innerHTML = `
-        <div class="word-card">
-            <div class="card-header">
-                ${word.word}
-                <button class="btn btn-sm btn-light float-end btn-audio" 
+        <div class="word-card card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>${word.word}</strong>
+                <button class="btn btn-sm btn-light btn-audio" 
                         onclick="event.stopPropagation(); playWordAudio('${word.word}')">
                     <i class="bi bi-volume-up"></i>
                 </button>
@@ -465,58 +392,53 @@ function createWordCard(word) {
                      class="card-img-top" 
                      style="height: 150px; object-fit: cover;"
                      loading="lazy"
+                     alt="${word.word}"
                      onerror="this.onerror=null; this.src='https://via.placeholder.com/400x300?text=${encodeURIComponent(word.word)}'; this.style.opacity='0.5';"
                      onload="this.classList.add('loaded')">
             ` : ''}
             <div class="card-body">
-                <!-- geri kalan kod aynı -->
+                <h5 class="card-title">${word.translation}</h5>
+                <div class="mb-2">
+                    ${categoryBadge} ${difficultyBadge}
+                </div>
+                ${word.example ? `<p class="card-text small text-muted"><em>${word.example}</em></p>` : ''}
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-success" onclick="updateWordProgress('${word.id}', true)" title="Doğru">
+                            <i class="bi bi-check"></i> ${word.correctCount || 0}
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="updateWordProgress('${word.id}', false)" title="Yanlış">
+                            <i class="bi bi-x"></i> ${word.incorrectCount || 0}
+                        </button>
+                    </div>
+                    <button class="btn btn-sm ${word.isFavorite ? 'btn-warning' : 'btn-outline-warning'}" 
+                            onclick="toggleFavorite('${word.id}')" title="Favori">
+                        <i class="bi ${word.isFavorite ? 'bi-star-fill' : 'bi-star'}"></i>
+                    </button>
+                </div>
             </div>
         </div>
     `;
 
     return col;
 }
-// Performans için debounce ekle
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
 
-// Filter fonksiyonunu debounce ile güncelle
-const debouncedFilter = debounce(filterWords, 300);
-document.getElementById('searchInput').addEventListener('keyup', debouncedFilter);
-
-function getDifficultyBadge(difficulty) {
-    const badges = {
-        'easy': '<span class="badge bg-success">Kolay</span>',
-        'medium': '<span class="badge bg-warning">Orta</span>',
-        'hard': '<span class="badge bg-danger">Zor</span>'
-    };
-    return badges[difficulty] || '<span class="badge bg-secondary">Belirsiz</span>';
-}
-
-function getCategoryBadge(category) {
-    const badges = {
-        'verb': '<span class="badge bg-info">Fiil</span>',
-        'noun': '<span class="badge bg-primary">İsim</span>',
-        'adjective': '<span class="badge bg-purple">Sıfat</span>',
-        'adverb': '<span class="badge bg-secondary">Zarf</span>'
-    };
-    return badges[category] || '<span class="badge bg-dark">Diğer</span>';
-}
-
+// Display Words in Table
 function displayWordsTable(words) {
     const tbody = document.getElementById('wordsTableBody');
-    tbody.innerHTML = '';
 
-    words.forEach(word => {
+    if (displayedWords.length === 0) {
+        tbody.innerHTML = '';
+    } else if (words === displayedWords) {
+        // Full refresh
+        tbody.innerHTML = '';
+    }
+
+    // Only add new words
+    const startIndex = tbody.children.length;
+    const newWords = words.slice(startIndex);
+
+    newWords.forEach(word => {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>
@@ -550,7 +472,48 @@ function displayWordsTable(words) {
     });
 }
 
-// Filter Functions
+// Display Words in Card View
+function displayWordsCards(words) {
+    const container = document.getElementById('cardView');
+
+    if (displayedWords.length === 0) {
+        container.innerHTML = '';
+    } else if (words === displayedWords) {
+        container.innerHTML = '';
+    }
+
+    const startIndex = container.children.length;
+    const newWords = words.slice(startIndex);
+
+    newWords.forEach((word, index) => {
+        setTimeout(() => {
+            const card = createWordCard(word);
+            container.appendChild(card);
+        }, index * 30);
+    });
+}
+
+// Set View Mode
+function setViewMode(mode) {
+    viewMode = mode;
+
+    // Update button states
+    document.getElementById('tableViewBtn').classList.toggle('active', mode === 'table');
+    document.getElementById('cardViewBtn').classList.toggle('active', mode === 'card');
+
+    // Show/hide views
+    document.getElementById('tableView').style.display = mode === 'table' ? 'block' : 'none';
+    document.getElementById('cardView').style.display = mode === 'card' ? 'block' : 'none';
+
+    // Refresh display
+    if (mode === 'table') {
+        displayWordsTable(displayedWords);
+    } else {
+        displayWordsCards(displayedWords);
+    }
+}
+
+// Filter Words
 function filterWords() {
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
     const category = document.getElementById('categoryFilter').value;
@@ -565,10 +528,302 @@ function filterWords() {
         return matchesSearch && matchesCategory && matchesDifficulty;
     });
 
-    displayWordsTable(filtered);
+    displayedWords = filtered;
+
+    if (viewMode === 'table') {
+        displayWordsTable(filtered);
+    } else {
+        displayWordsCards(filtered);
+    }
 }
 
-// Add Word Function
+// Debounce function
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Apply debounce to search
+document.getElementById('searchInput').addEventListener('keyup', debounce(filterWords, 300));
+
+// Get Difficulty Badge
+function getDifficultyBadge(difficulty) {
+    const badges = {
+        'easy': '<span class="badge bg-success">Kolay</span>',
+        'medium': '<span class="badge bg-warning">Orta</span>',
+        'hard': '<span class="badge bg-danger">Zor</span>'
+    };
+    return badges[difficulty] || '<span class="badge bg-secondary">Belirsiz</span>';
+}
+
+// Get Category Badge
+function getCategoryBadge(category) {
+    const badges = {
+        'verb': '<span class="badge bg-info">Fiil</span>',
+        'noun': '<span class="badge bg-primary">İsim</span>',
+        'adjective': '<span class="badge bg-purple">Sıfat</span>',
+        'adverb': '<span class="badge bg-secondary">Zarf</span>'
+    };
+    return badges[category] || '<span class="badge bg-dark">Diğer</span>';
+}
+
+// Quiz Functions
+async function startQuiz() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/words/${currentLanguage}/quiz?count=10`);
+        currentQuizWords = await response.json();
+
+        if (currentQuizWords.length === 0) {
+            showNotification('Quiz başlatmak için yeterli kelime yok!', 'error');
+            return;
+        }
+
+        currentQuizIndex = 0;
+        correctCount = 0;
+
+        // Hide start screen, show quiz content
+        document.getElementById('quizStart').style.display = 'none';
+        document.getElementById('quizResult').style.display = 'none';
+        document.getElementById('quizContent').style.display = 'block';
+
+        // Update counters
+        document.getElementById('correctAnswers').textContent = '0';
+        document.getElementById('questionNumber').textContent = '1';
+
+        loadQuizQuestion();
+    } catch (error) {
+        console.error('Error starting quiz:', error);
+        showNotification('Quiz başlatılırken hata oluştu!', 'error');
+    }
+}
+
+// Load Quiz Question
+function loadQuizQuestion() {
+    if (currentQuizIndex >= currentQuizWords.length) {
+        showQuizResult();
+        return;
+    }
+
+    currentWord = currentQuizWords[currentQuizIndex];
+
+    // Display word with image if available
+    const quizWord = document.getElementById('quizWord');
+    quizWord.innerHTML = `
+        ${currentWord.word}
+        ${currentWord.imageUrl ? `
+            <div class="mt-3">
+                <img src="${currentWord.imageUrl}" 
+                     class="img-fluid rounded" 
+                     style="max-height: 200px;"
+                     loading="lazy"
+                     onerror="this.style.display='none'">
+            </div>
+        ` : ''}
+    `;
+
+    // Create answer options
+    const options = generateAnswerOptions(currentWord);
+    const optionsContainer = document.getElementById('answerOptions');
+    optionsContainer.innerHTML = '';
+
+    options.forEach((option, index) => {
+        const col = document.createElement('div');
+        col.className = 'col-md-6';
+        const optionId = `option-${index}`;
+        col.innerHTML = `
+            <div class="answer-option card p-3 mb-2" 
+                 id="${optionId}" 
+                 data-answer="${option.replace(/"/g, '&quot;')}"
+                 style="cursor: pointer; transition: all 0.3s;">
+                <i class="bi bi-circle me-2"></i>
+                ${option}
+            </div>
+        `;
+        optionsContainer.appendChild(col);
+    });
+
+    // Add event listeners
+    setTimeout(() => {
+        document.querySelectorAll('.answer-option').forEach(opt => {
+            opt.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const answer = this.getAttribute('data-answer');
+                checkAnswer(answer, this);
+            });
+        });
+    }, 100);
+
+    // Reset UI
+    document.getElementById('feedback').style.display = 'none';
+    document.getElementById('nextQuestionBtn').style.display = 'none';
+
+    // Auto play audio
+    setTimeout(() => {
+        playWordAudio(currentWord.word);
+    }, 500);
+}
+
+// Generate Answer Options
+function generateAnswerOptions(word) {
+    const correctAnswer = word.translation;
+    const options = [correctAnswer];
+
+    // Add random wrong answers
+    const allTranslations = currentQuizWords
+        .map(w => w.translation)
+        .filter(t => t !== correctAnswer);
+
+    while (options.length < 4 && allTranslations.length > 0) {
+        const randomIndex = Math.floor(Math.random() * allTranslations.length);
+        const wrongAnswer = allTranslations.splice(randomIndex, 1)[0];
+        if (!options.includes(wrongAnswer)) {
+            options.push(wrongAnswer);
+        }
+    }
+
+    // If not enough options, add dummy ones
+    while (options.length < 4) {
+        options.push(`Opción ${options.length + 1}`);
+    }
+
+    // Shuffle options
+    return options.sort(() => Math.random() - 0.5);
+}
+
+// Check Answer
+async function checkAnswer(answer, element) {
+    // Prevent double click
+    if (!element || element.classList.contains('disabled')) {
+        return;
+    }
+
+    // Disable all options
+    document.querySelectorAll('.answer-option').forEach(opt => {
+        opt.classList.add('disabled');
+        opt.style.pointerEvents = 'none';
+    });
+
+    const isCorrect = answer === currentWord.translation;
+
+    // Update UI
+    if (isCorrect) {
+        element.classList.add('border-success', 'bg-success', 'text-white');
+        element.querySelector('i').className = 'bi bi-check-circle-fill me-2';
+        correctCount++;
+        document.getElementById('correctAnswers').textContent = correctCount;
+        showFeedback(true, 'Doğru! 🎉');
+        playSuccessSound();
+    } else {
+        element.classList.add('border-danger', 'bg-danger', 'text-white');
+        element.querySelector('i').className = 'bi bi-x-circle-fill me-2';
+        showFeedback(false, `Yanlış! Doğru cevap: ${currentWord.translation}`);
+        playErrorSound();
+
+        // Highlight correct answer
+        document.querySelectorAll('.answer-option').forEach(opt => {
+            const optAnswer = opt.getAttribute('data-answer');
+            if (optAnswer === currentWord.translation) {
+                opt.classList.add('border-success', 'bg-success', 'text-white');
+                opt.querySelector('i').className = 'bi bi-check-circle-fill me-2';
+            }
+        });
+    }
+
+    // Update word progress
+    try {
+        await fetch(`${API_BASE_URL}/words/${currentLanguage}/${currentWord.id}/progress`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ correct: isCorrect })
+        });
+    } catch (error) {
+        console.error('Error updating progress:', error);
+    }
+
+    // Show next button
+    document.getElementById('nextQuestionBtn').style.display = 'inline-block';
+}
+
+// Show Feedback
+function showFeedback(isCorrect, message) {
+    const feedback = document.getElementById('feedback');
+    feedback.className = `alert alert-${isCorrect ? 'success' : 'danger'}`;
+    feedback.textContent = message;
+    feedback.style.display = 'block';
+}
+
+// Next Question
+function nextQuestion() {
+    currentQuizIndex++;
+    document.getElementById('questionNumber').textContent = currentQuizIndex + 1;
+    loadQuizQuestion();
+}
+
+// Show Quiz Result
+function showQuizResult() {
+    document.getElementById('quizContent').style.display = 'none';
+    document.getElementById('quizResult').style.display = 'block';
+
+    const percentage = (correctCount / currentQuizWords.length) * 100;
+    document.getElementById('finalScore').textContent = correctCount;
+
+    let message = '';
+    if (percentage >= 80) {
+        message = 'Mükemmel! 🏆';
+    } else if (percentage >= 60) {
+        message = 'İyi iş! 👍';
+    } else if (percentage >= 40) {
+        message = 'Fena değil, pratik yapmaya devam! 📚';
+    } else {
+        message = 'Daha fazla çalışmaya ihtiyacın var! 💪';
+    }
+
+    document.getElementById('resultMessage').textContent = message;
+}
+
+// Audio Functions
+function playWordAudio(word) {
+    if (!word) return;
+
+    // Use Web Speech API
+    if ('speechSynthesis' in window) {
+        speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(word);
+        utterance.lang = currentLanguage === 'es' ? 'es-ES' : 'en-US';
+        utterance.rate = 0.9;
+        utterance.pitch = 1;
+        utterance.volume = 0.8;
+        speechSynthesis.speak(utterance);
+    }
+}
+
+function playAudio() {
+    if (currentWord) {
+        playWordAudio(currentWord.word);
+    }
+}
+
+function playSuccessSound() {
+    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUort9bllHgU7k9n1zn0wBSh+zPTaizsIHWq+8uifUAoMT6rs9b1pHgg2k9jzzXkxBSh+zPLaizsIHWu+8+mjVQoLTKns87xmHgg3k9jzzXkxBSh+zPLaizsIHWu+8+mjVQoLTKns87xmHgg3k9jzzXkxBCh+zPLaizsIHWu+8+mjVQoLTKns87xmHgg3k9jzzXkxBCh+zPLaizsIHWu+8+mjVQoLTKns87xmHgg3k9jzzXkxBCh+zPLaizsIHWu+8+mjVQoLTKns87xmHgg3k9jzzXkxBCh+zPLaizsIHWu+8+mjVQoLTKns87xmHgg3k9jzzXkxBCh+zPLaizsi');
+    audio.volume = 0.3;
+    audio.play().catch(() => {});
+}
+
+function playErrorSound() {
+    const audio = new Audio('data:audio/wav;base64,UklGRuYCAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YcICAAC4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4uLi4');
+    audio.volume = 0.3;
+    audio.play().catch(() => {});
+}
+
+// CRUD Operations
 async function handleAddWord(e) {
     e.preventDefault();
 
@@ -596,20 +851,19 @@ async function handleAddWord(e) {
         });
 
         if (response.ok) {
-            alert(editingWordId ? 'Kelime güncellendi!' : 'Kelime eklendi!');
+            showNotification(editingWordId ? 'Kelime güncellendi!' : 'Kelime eklendi!', 'success');
             document.getElementById('addWordForm').reset();
             editingWordId = null;
             showSection('all-words');
         } else {
-            alert('İşlem sırasında hata oluştu!');
+            showNotification('İşlem sırasında hata oluştu!', 'error');
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('İşlem sırasında hata oluştu!');
+        showNotification('İşlem sırasında hata oluştu!', 'error');
     }
 }
 
-// Edit Word Function
 function editWord(wordId) {
     const word = allWords.find(w => w.id === wordId);
     if (word) {
@@ -627,7 +881,6 @@ function editWord(wordId) {
     }
 }
 
-// Delete Word Function
 async function deleteWord(wordId) {
     if (confirm('Bu kelimeyi silmek istediğinize emin misiniz?')) {
         try {
@@ -636,19 +889,26 @@ async function deleteWord(wordId) {
             });
 
             if (response.ok) {
-                alert('Kelime silindi!');
-                loadAllWords();
+                showNotification('Kelime silindi!', 'success');
+                // Remove from arrays
+                allWords = allWords.filter(w => w.id !== wordId);
+                displayedWords = displayedWords.filter(w => w.id !== wordId);
+                // Refresh display
+                if (viewMode === 'table') {
+                    displayWordsTable(displayedWords);
+                } else {
+                    displayWordsCards(displayedWords);
+                }
             } else {
-                alert('Silme işlemi başarısız!');
+                showNotification('Silme işlemi başarısız!', 'error');
             }
         } catch (error) {
             console.error('Error deleting word:', error);
-            alert('Silme işlemi başarısız!');
+            showNotification('Silme işlemi başarısız!', 'error');
         }
     }
 }
 
-// Toggle Favorite Function
 async function toggleFavorite(wordId) {
     try {
         const response = await fetch(`${API_BASE_URL}/words/${currentLanguage}/${wordId}/favorite`, {
@@ -656,12 +916,25 @@ async function toggleFavorite(wordId) {
         });
 
         if (response.ok) {
-            // Reload current view
+            const updatedWord = await response.json();
+
+            // Update in arrays
+            const index = allWords.findIndex(w => w.id === wordId);
+            if (index !== -1) {
+                allWords[index].isFavorite = updatedWord.isFavorite;
+                displayedWords = [...allWords];
+            }
+
+            // Refresh current view
             const activeSection = document.querySelector('.content-section[style*="block"]');
             if (activeSection) {
                 const sectionId = activeSection.id;
                 if (sectionId === 'all-words') {
-                    loadAllWords();
+                    if (viewMode === 'table') {
+                        displayWordsTable(displayedWords);
+                    } else {
+                        displayWordsCards(displayedWords);
+                    }
                 } else if (sectionId === 'unknown-words') {
                     loadUnknownWords();
                 } else if (sectionId === 'new-words') {
@@ -671,22 +944,49 @@ async function toggleFavorite(wordId) {
         }
     } catch (error) {
         console.error('Error toggling favorite:', error);
+        showNotification('Favori durumu güncellenemedi!', 'error');
     }
 }
 
+async function updateWordProgress(wordId, isCorrect) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/words/${currentLanguage}/${wordId}/progress`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ correct: isCorrect })
+        });
 
-function playAudio() {
-    if (currentWord) {
-        playWordAudio(currentWord.word);
+        if (response.ok) {
+            const updatedWord = await response.json();
+
+            // Update in arrays
+            const index = allWords.findIndex(w => w.id === wordId);
+            if (index !== -1) {
+                allWords[index] = updatedWord;
+                displayedWords = [...allWords];
+            }
+
+            showNotification(isCorrect ? 'Doğru işaretlendi!' : 'Yanlış işaretlendi!', 'info');
+
+            // Refresh display
+            if (viewMode === 'table') {
+                displayWordsTable(displayedWords);
+            } else {
+                displayWordsCards(displayedWords);
+            }
+        }
+    } catch (error) {
+        console.error('Error updating progress:', error);
+        showNotification('İlerleme güncellenemedi!', 'error');
     }
 }
 
-// Practice Function
 function practiceWord(wordId) {
     const word = allWords.find(w => w.id === wordId);
     if (word) {
         currentQuizWords = [word];
-        // Add some random words for options
+
+        // Add random words for options
         const otherWords = allWords.filter(w => w.id !== wordId);
         const randomWords = otherWords.sort(() => 0.5 - Math.random()).slice(0, 3);
         currentQuizWords.push(...randomWords);
@@ -706,8 +1006,18 @@ function practiceWord(wordId) {
     }
 }
 
-// Review Function
+function startQuickQuiz() {
+    showSection('quiz');
+    startQuiz();
+}
+
 function reviewWords() {
     showSection('unknown-words');
 }
 
+function scrollToTop() {
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+}
