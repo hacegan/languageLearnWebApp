@@ -20,7 +20,7 @@ import java.io.InputStream;
 @Configuration
 public class FirebaseConfig {
 
-    @Value("${firebase.config.path:serviceAccountKey.json}")
+    @Value("${firebase.config.path:/etc/secrets/serviceAccountKey.json}")
     private String firebaseConfigPath;
 
     private boolean isInitialized = false;
@@ -28,7 +28,7 @@ public class FirebaseConfig {
     @PostConstruct
     public void initialize() {
         if (isInitialized || !FirebaseApp.getApps().isEmpty()) {
-            System.out.println("Firebase already initialized");
+            System.out.println("Firebase zaten başlatıldı");
             return;
         }
 
@@ -36,25 +36,25 @@ public class FirebaseConfig {
             InputStream serviceAccount = null;
 
             try {
-                // Önce root dizinden okumayı dene
+                // Önce belirtilen yoldan (ör. /etc/secrets/serviceAccountKey.json) okumayı dene
                 File file = new File(firebaseConfigPath);
                 if (file.exists()) {
                     serviceAccount = new FileInputStream(file);
-                    System.out.println("Loading Firebase config from file system: " + file.getAbsolutePath());
+                    System.out.println("Firebase yapılandırma dosyası dosya sisteminden yüklendi: " + file.getAbsolutePath());
                 } else {
-                    // Classpath'ten okumayı dene
-                    Resource resource = new ClassPathResource(firebaseConfigPath);
+                    // Classpath'ten okumayı dene (geliştirme ortamı için)
+                    Resource resource = new ClassPathResource("serviceAccountKey.json");
                     if (resource.exists()) {
                         serviceAccount = resource.getInputStream();
-                        System.out.println("Loading Firebase config from classpath: " + firebaseConfigPath);
+                        System.out.println("Firebase yapılandırma dosyası classpath'ten yüklendi: " + firebaseConfigPath);
                     }
                 }
 
                 if (serviceAccount == null) {
                     // Son çare olarak classloader'dan dene
-                    serviceAccount = getClass().getClassLoader().getResourceAsStream(firebaseConfigPath);
+                    serviceAccount = getClass().getClassLoader().getResourceAsStream("serviceAccountKey.json");
                     if (serviceAccount != null) {
-                        System.out.println("Loading Firebase config from classloader: " + firebaseConfigPath);
+                        System.out.println("Firebase yapılandırma dosyası classloader'dan yüklendi: " + firebaseConfigPath);
                     }
                 }
 
@@ -68,10 +68,10 @@ public class FirebaseConfig {
 
                     FirebaseApp.initializeApp(options);
                     isInitialized = true;
-                    System.out.println("Firebase initialized successfully!");
+                    System.out.println("Firebase başarıyla başlatıldı!");
 
                 } else {
-                    throw new RuntimeException("Firebase service account file not found at: " + firebaseConfigPath);
+                    throw new RuntimeException("Firebase yapılandırma dosyası bulunamadı: " + firebaseConfigPath);
                 }
 
             } finally {
@@ -80,31 +80,31 @@ public class FirebaseConfig {
                     try {
                         serviceAccount.close();
                     } catch (IOException e) {
-                        System.err.println("Error closing service account stream: " + e.getMessage());
+                        System.err.println("Yapılandırma dosyası stream'i kapatılırken hata oluştu: " + e.getMessage());
                     }
                 }
             }
 
         } catch (IOException e) {
-            System.err.println("ERROR initializing Firebase: " + e.getMessage());
+            System.err.println("Firebase başlatılırken hata: " + e.getMessage());
             e.printStackTrace();
-            throw new RuntimeException("Failed to initialize Firebase", e);
+            throw new RuntimeException("Firebase başlatılamadı", e);
         }
     }
 
     @Bean
     public Firestore firestore() {
-        // Firebase'in initialize olduğundan emin ol
+        // Firebase'in başlatıldığından emin ol
         if (!isInitialized && FirebaseApp.getApps().isEmpty()) {
             initialize();
         }
 
         if (FirebaseApp.getApps().isEmpty()) {
-            throw new RuntimeException("Firebase is not initialized. Please check your configuration.");
+            throw new RuntimeException("Firebase başlatılmadı. Lütfen yapılandırmanızı kontrol edin.");
         }
 
         Firestore firestore = FirestoreClient.getFirestore();
-        System.out.println("Firestore bean created successfully");
+        System.out.println("Firestore bean başarıyla oluşturuldu");
         return firestore;
     }
 }
