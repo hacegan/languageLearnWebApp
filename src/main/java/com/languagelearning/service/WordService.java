@@ -465,10 +465,13 @@ public class WordService {
         ApiFuture<QuerySnapshot> future = countQuery.get();
         List<QueryDocumentSnapshot> allDocs = future.get().getDocuments();
 
-        // Rastgele seç
-        Collections.shuffle(allDocs);
+        // Firestore'dan dönen immutable listeyi mutable ArrayList'e kopyala
+        List<QueryDocumentSnapshot> mutableDocs = new ArrayList<>(allDocs);
 
-        return allDocs.stream()
+        // Şimdi güvenle shuffle yapabiliriz
+        Collections.shuffle(mutableDocs);
+
+        return mutableDocs.stream()
                 .limit(count)
                 .map(doc -> {
                     Word word = doc.toObject(Word.class);
