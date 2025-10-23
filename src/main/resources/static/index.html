@@ -10,58 +10,62 @@
 </head>
 <body>
 <!-- Navigation -->
-<nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+<nav class="navbar navbar-expand-lg navbar-light fixed-top">
     <div class="container-fluid px-4">
         <a class="navbar-brand d-flex align-items-center" href="#">
-            <i class="bi bi-translate me-2"></i>
-            <span class="brand-text">Dil Öğrenme</span>
+            <div class="brand-icon">
+                <i class="bi bi-translate"></i>
+            </div>
+            <span class="brand-text">LinguaLearn</span>
         </a>
         <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            <ul class="navbar-nav mx-auto">
                 <li class="nav-item">
                     <a class="nav-link active" href="#" onclick="showSection('dashboard')">
-                        <i class="bi bi-house me-1"></i>
+                        <i class="bi bi-house-door"></i>
                         <span>Ana Sayfa</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#" onclick="showSection('quiz')">
-                        <i class="bi bi-question-circle me-1"></i>
+                        <i class="bi bi-mortarboard"></i>
                         <span>Quiz</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#" onclick="showSection('unknown-words')">
-                        <i class="bi bi-x-circle me-1"></i>
+                        <i class="bi bi-exclamation-circle"></i>
                         <span>Bilinmeyen</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#" onclick="showSection('new-words')">
-                        <i class="bi bi-plus-circle me-1"></i>
+                        <i class="bi bi-plus-square"></i>
                         <span>Yeni Kelimeler</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#" onclick="showSection('all-words')">
-                        <i class="bi bi-list me-1"></i>
+                        <i class="bi bi-collection"></i>
                         <span>Tüm Kelimeler</span>
                     </a>
                 </li>
             </ul>
 
             <!-- Language Selector & Add Button -->
-            <div class="d-flex align-items-center gap-2 mt-3 mt-lg-0">
+            <div class="d-flex align-items-center gap-3">
                 <select id="languageSelector" class="form-select form-select-sm language-selector">
                     <option value="es">🇪🇸 İspanyolca</option>
                     <option value="en">🇬🇧 İngilizce</option>
+                    <option value="de">🇩🇪 Almanca</option>
+                    <option value="fr">🇫🇷 Fransızca</option>
                 </select>
-                <button class="btn btn-add-word" onclick="showSection('add-word')">
-                    <i class="bi bi-plus-lg me-1"></i>
-                    <span class="d-none d-md-inline">Kelime Ekle</span>
+                <button class="btn btn-primary btn-add-word" onclick="showSection('add-word')">
+                    <i class="bi bi-plus-lg"></i>
+                    <span class="d-none d-lg-inline ms-2">Kelime Ekle</span>
                 </button>
             </div>
         </div>
@@ -69,314 +73,321 @@
 </nav>
 
 <!-- Main Content -->
-<div class="container-fluid main-container">
-    <!-- Dashboard Section -->
-    <section id="dashboard" class="content-section">
-        <div class="row g-4">
-            <div class="col-12">
+<div class="main-wrapper">
+    <div class="container-fluid main-container">
+        <!-- Dashboard Section -->
+        <section id="dashboard" class="content-section active">
+            <div class="section-header">
                 <h2 class="section-title">
-                    <i class="bi bi-speedometer2 me-2"></i>
-                    Özet Görünüm
+                    <div class="title-icon">
+                        <i class="bi bi-speedometer2"></i>
+                    </div>
+                    <span>Özet Görünüm</span>
                 </h2>
             </div>
 
             <!-- Stats Cards -->
-            <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6">
+            <div class="stats-grid">
                 <div class="stat-card stat-card-success">
-                    <div class="stat-card-body">
-                        <div class="stat-content">
-                            <div class="stat-info">
-                                <p class="stat-label">Öğrenilen</p>
-                                <h3 class="stat-value" id="learnedCount">
-                                    <span class="spinner-border spinner-border-sm" role="status"></span>
-                                </h3>
-                            </div>
-                            <div class="stat-icon">
-                                <i class="bi bi-check-circle"></i>
-                            </div>
-                        </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-check-circle-fill"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 class="stat-value" id="learnedCount">245</h3>
+                        <p class="stat-label">Öğrenilen</p>
+                    </div>
+                    <div class="stat-progress">
+                        <div class="progress-bar" style="width: 75%;"></div>
                     </div>
                 </div>
-            </div>
 
-            <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6">
                 <div class="stat-card stat-card-warning">
-                    <div class="stat-card-body">
-                        <div class="stat-content">
-                            <div class="stat-info">
-                                <p class="stat-label">Öğreniliyor</p>
-                                <h3 class="stat-value" id="learningCount">
-                                    <span class="spinner-border spinner-border-sm" role="status"></span>
-                                </h3>
-                            </div>
-                            <div class="stat-icon">
-                                <i class="bi bi-arrow-repeat"></i>
-                            </div>
-                        </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 class="stat-value" id="learningCount">89</h3>
+                        <p class="stat-label">Öğreniliyor</p>
+                    </div>
+                    <div class="stat-progress">
+                        <div class="progress-bar" style="width: 45%;"></div>
                     </div>
                 </div>
-            </div>
 
-            <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6">
                 <div class="stat-card stat-card-danger">
-                    <div class="stat-card-body">
-                        <div class="stat-content">
-                            <div class="stat-info">
-                                <p class="stat-label">Bilinmeyen</p>
-                                <h3 class="stat-value" id="unknownCount">
-                                    <span class="spinner-border spinner-border-sm" role="status"></span>
-                                </h3>
-                            </div>
-                            <div class="stat-icon">
-                                <i class="bi bi-x-circle"></i>
-                            </div>
-                        </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-x-circle-fill"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 class="stat-value" id="unknownCount">34</h3>
+                        <p class="stat-label">Bilinmeyen</p>
+                    </div>
+                    <div class="stat-progress">
+                        <div class="progress-bar" style="width: 20%;"></div>
                     </div>
                 </div>
-            </div>
 
-            <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6">
                 <div class="stat-card stat-card-info">
-                    <div class="stat-card-body">
-                        <div class="stat-content">
-                            <div class="stat-info">
-                                <p class="stat-label">Toplam</p>
-                                <h3 class="stat-value" id="totalCount">
-                                    <span class="spinner-border spinner-border-sm" role="status"></span>
-                                </h3>
-                            </div>
-                            <div class="stat-icon">
-                                <i class="bi bi-list-ul"></i>
-                            </div>
-                        </div>
+                    <div class="stat-icon">
+                        <i class="bi bi-collection-fill"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 class="stat-value" id="totalCount">368</h3>
+                        <p class="stat-label">Toplam</p>
+                    </div>
+                    <div class="stat-progress">
+                        <div class="progress-bar" style="width: 100%;"></div>
                     </div>
                 </div>
             </div>
 
             <!-- Quick Actions -->
-            <div class="col-12">
-                <div class="card quick-actions-card">
-                    <div class="card-body p-4">
-                        <h5 class="card-title mb-4">
-                            <i class="bi bi-lightning-charge me-2"></i>
-                            Hızlı Başlat
-                        </h5>
-                        <div class="row g-3">
-                            <div class="col-lg-4 col-md-6">
-                                <button class="quick-action-btn btn-primary-action" onclick="startQuickQuiz()">
-                                    <i class="bi bi-play-circle"></i>
-                                    <span>Hızlı Quiz Başlat</span>
-                                </button>
-                            </div>
-                            <div class="col-lg-4 col-md-6">
-                                <button class="quick-action-btn btn-success-action" onclick="showSection('new-words')">
-                                    <i class="bi bi-book"></i>
-                                    <span>Yeni Kelime Öğren</span>
-                                </button>
-                            </div>
-                            <div class="col-lg-4 col-md-12">
-                                <button class="quick-action-btn btn-warning-action" onclick="reviewWords()">
-                                    <i class="bi bi-arrow-repeat"></i>
-                                    <span>Tekrar Et</span>
-                                </button>
-                            </div>
+            <div class="quick-actions">
+                <h5 class="quick-actions-title">
+                    <i class="bi bi-lightning-charge-fill"></i>
+                    Hızlı İşlemler
+                </h5>
+                <div class="quick-actions-grid">
+                    <button class="quick-action-btn btn-primary-action" onclick="startQuickQuiz()">
+                        <div class="action-icon">
+                            <i class="bi bi-play-circle-fill"></i>
+                        </div>
+                        <span class="action-text">Hızlı Quiz</span>
+                    </button>
+                    <button class="quick-action-btn btn-success-action" onclick="showSection('new-words')">
+                        <div class="action-icon">
+                            <i class="bi bi-book-half"></i>
+                        </div>
+                        <span class="action-text">Yeni Kelime</span>
+                    </button>
+                    <button class="quick-action-btn btn-warning-action" onclick="reviewWords()">
+                        <div class="action-icon">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </div>
+                        <span class="action-text">Tekrar Et</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="recent-activity">
+                <h5 class="activity-title">
+                    <i class="bi bi-activity"></i>
+                    Son Aktiviteler
+                </h5>
+                <div class="activity-list">
+                    <div class="activity-item">
+                        <div class="activity-icon success">
+                            <i class="bi bi-check"></i>
+                        </div>
+                        <div class="activity-content">
+                            <p class="activity-text">10 kelime öğrenildi</p>
+                            <span class="activity-time">2 saat önce</span>
+                        </div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="activity-icon warning">
+                            <i class="bi bi-trophy"></i>
+                        </div>
+                        <div class="activity-content">
+                            <p class="activity-text">Quiz tamamlandı (8/10)</p>
+                            <span class="activity-time">5 saat önce</span>
+                        </div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="activity-icon info">
+                            <i class="bi bi-plus"></i>
+                        </div>
+                        <div class="activity-content">
+                            <p class="activity-text">15 yeni kelime eklendi</p>
+                            <span class="activity-time">1 gün önce</span>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- Quiz Section -->
-    <section id="quiz" class="content-section" style="display: none;">
-        <div class="row justify-content-center">
-            <div class="col-xl-8 col-lg-10">
+        <!-- Quiz Section -->
+        <section id="quiz" class="content-section" style="display: none;">
+            <div class="quiz-container">
                 <div class="quiz-card">
                     <div class="quiz-header">
-                        <div class="quiz-header-content">
-                            <h4 class="mb-0">
-                                <i class="bi bi-mortarboard me-2"></i>
-                                Quiz
-                            </h4>
-                            <div class="quiz-badges">
-                                <span class="quiz-badge badge-light">
-                                    <i class="bi bi-list-ol me-1"></i>
-                                    Soru: <span id="questionNumber">1</span>/10
-                                </span>
-                                <span class="quiz-badge badge-success">
-                                    <i class="bi bi-check-circle me-1"></i>
-                                    Doğru: <span id="correctAnswers">0</span>
-                                </span>
-                            </div>
+                        <h4 class="quiz-title">
+                            <i class="bi bi-mortarboard-fill"></i>
+                            <span>Kelime Quiz</span>
+                        </h4>
+                        <div class="quiz-stats">
+                            <span class="quiz-stat">
+                                <i class="bi bi-hash"></i>
+                                <span id="questionNumber">1</span>/10
+                            </span>
+                            <span class="quiz-stat success">
+                                <i class="bi bi-check-circle"></i>
+                                <span id="correctAnswers">0</span>
+                            </span>
                         </div>
                     </div>
 
                     <div class="quiz-body">
-                        <div id="quizContent">
-                            <!-- Word Display -->
-                            <div class="quiz-word-display">
-                                <h2 id="quizWord" class="quiz-word">Cargando...</h2>
-                                <button class="btn btn-audio" onclick="playAudio()" id="audioButton">
-                                    <i class="bi bi-volume-up"></i>
-                                    <span class="d-none d-sm-inline ms-2">Dinle</span>
-                                    <span class="spinner-border spinner-border-sm ms-2 d-none" id="audioSpinner"></span>
+                        <!-- Quiz Start Screen -->
+                        <div id="quizStart" class="quiz-start-screen">
+                            <div class="quiz-start-icon">
+                                <i class="bi bi-mortarboard-fill"></i>
+                            </div>
+                            <h3>Quiz'e Başlamaya Hazır mısın?</h3>
+                            <p>10 sorudan oluşan bu quiz ile bilgini test edebilirsin.</p>
+                            <button class="btn btn-primary btn-lg" onclick="startQuiz()">
+                                <i class="bi bi-play-fill"></i>
+                                Quiz'i Başlat
+                            </button>
+                        </div>
+
+                        <!-- Quiz Content -->
+                        <div id="quizContent" style="display: none;">
+                            <div class="quiz-word-section">
+                                <h2 id="quizWord" class="quiz-word">palabra</h2>
+                                <button class="btn btn-outline-primary btn-audio" onclick="playAudio()">
+                                    <i class="bi bi-volume-up-fill"></i>
+                                    <span>Dinle</span>
                                 </button>
                             </div>
 
-                            <!-- Answer Options -->
                             <div id="answerOptions" class="answer-options">
                                 <!-- Dynamically generated -->
                             </div>
 
-                            <!-- Feedback -->
                             <div id="feedback" class="quiz-feedback" style="display: none;"></div>
 
-                            <!-- Next Button -->
-                            <div class="quiz-next-btn-container">
-                                <button id="nextQuestionBtn" class="btn btn-next" style="display: none;" onclick="nextQuestion()">
-                                    Sonraki Soru
-                                    <i class="bi bi-arrow-right ms-2"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Quiz Start Screen -->
-                        <div id="quizStart" class="quiz-start-screen">
-                            <div class="quiz-start-icon">
-                                <i class="bi bi-mortarboard"></i>
-                            </div>
-                            <h3>Quiz'e Başlamaya Hazır mısın?</h3>
-                            <p class="text-muted">10 sorudan oluşan bu quiz ile bilgini test edebilirsin.</p>
-                            <button class="btn btn-start-quiz" onclick="startQuiz()">
-                                <i class="bi bi-play-fill me-2"></i>
-                                Quiz'i Başlat
+                            <button id="nextQuestionBtn" class="btn btn-primary btn-next" style="display: none;" onclick="nextQuestion()">
+                                Sonraki Soru
+                                <i class="bi bi-arrow-right"></i>
                             </button>
                         </div>
 
                         <!-- Quiz Result Screen -->
                         <div id="quizResult" class="quiz-result-screen" style="display: none;">
                             <div class="quiz-result-icon">
-                                <i class="bi bi-trophy"></i>
+                                <i class="bi bi-trophy-fill"></i>
                             </div>
                             <h3>Quiz Tamamlandı!</h3>
                             <div class="quiz-score">
-                                <h1 class="score-display">
-                                    <span id="finalScore">0</span><span class="score-divider">/</span><span>10</span>
-                                </h1>
-                                <p class="score-message" id="resultMessage"></p>
+                                <div class="score-circle">
+                                    <span class="score-value" id="finalScore">0</span>
+                                    <span class="score-total">/10</span>
+                                </div>
                             </div>
-                            <button class="btn btn-retry-quiz" onclick="startQuiz()">
-                                <i class="bi bi-arrow-repeat me-2"></i>
+                            <p class="score-message" id="resultMessage"></p>
+                            <button class="btn btn-primary btn-lg" onclick="startQuiz()">
+                                <i class="bi bi-arrow-repeat"></i>
                                 Tekrar Dene
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- Unknown Words Section -->
-    <section id="unknown-words" class="content-section" style="display: none;">
-        <h2 class="section-title mb-4">
-            <i class="bi bi-x-circle me-2"></i>
-            Bilinmeyen Kelimeler
-        </h2>
+        <!-- Unknown Words Section -->
+        <section id="unknown-words" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <div class="title-icon danger">
+                        <i class="bi bi-exclamation-circle"></i>
+                    </div>
+                    <span>Bilinmeyen Kelimeler</span>
+                </h2>
+            </div>
 
-        <!-- Loading skeleton -->
-        <div id="unknownWordsLoading" class="row">
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
-                <div class="skeleton skeleton-card"></div>
-            </div>
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
-                <div class="skeleton skeleton-card"></div>
-            </div>
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
-                <div class="skeleton skeleton-card"></div>
-            </div>
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
-                <div class="skeleton skeleton-card"></div>
-            </div>
-        </div>
-
-        <div class="row" id="unknownWordsList">
-            <!-- Dynamically generated -->
-        </div>
-    </section>
-
-    <!-- New Words Section -->
-    <section id="new-words" class="content-section" style="display: none;">
-        <h2 class="section-title mb-4">
-            <i class="bi bi-plus-circle me-2"></i>
-            Yeni Kelimeler
-        </h2>
-
-        <!-- Loading skeleton -->
-        <div id="newWordsLoading" class="row">
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
-                <div class="skeleton skeleton-card"></div>
-            </div>
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
-                <div class="skeleton skeleton-card"></div>
-            </div>
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
-                <div class="skeleton skeleton-card"></div>
-            </div>
-            <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
-                <div class="skeleton skeleton-card"></div>
-            </div>
-        </div>
-
-        <div class="row" id="newWordsList">
-            <!-- Dynamically generated -->
-        </div>
-    </section>
-
-    <!-- All Words Section -->
-    <section id="all-words" class="content-section" style="display: none;">
-        <div class="all-words-header">
-            <h2 class="section-title">
-                <i class="bi bi-list me-2"></i>
-                Tüm Kelimeler
-            </h2>
-
-            <!-- Search and Filter -->
-            <div class="filters-container">
-                <div class="search-box">
-                    <i class="bi bi-search"></i>
-                    <input type="text" id="searchInput" class="form-control" placeholder="Kelime ara..." onkeyup="filterWords()">
+            <div class="words-grid" id="unknownWordsList">
+                <!-- Word Cards -->
+                <div class="word-card">
+                    <div class="word-card-header">
+                        <span class="word-category">Fiil</span>
+                        <button class="btn-icon">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                    </div>
+                    <div class="word-card-body">
+                        <h5 class="word-title">correr</h5>
+                        <p class="word-translation">koşmak</p>
+                        <div class="word-example">
+                            <i class="bi bi-quote"></i>
+                            <p>Me gusta correr por las mañanas</p>
+                        </div>
+                    </div>
+                    <div class="word-card-footer">
+                        <button class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-volume-up"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-check"></i>
+                            Öğrendim
+                        </button>
+                    </div>
                 </div>
+                <!-- More cards... -->
+            </div>
+        </section>
 
-                <select id="categoryFilter" class="form-select filter-select" onchange="filterWords()">
-                    <option value="">Tüm Kategoriler</option>
-                    <option value="verb">Fiil</option>
-                    <option value="noun">İsim</option>
-                    <option value="adjective">Sıfat</option>
-                    <option value="adverb">Zarf</option>
-                </select>
+        <!-- New Words Section -->
+        <section id="new-words" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <div class="title-icon success">
+                        <i class="bi bi-plus-square"></i>
+                    </div>
+                    <span>Yeni Kelimeler</span>
+                </h2>
+            </div>
 
-                <select id="difficultyFilter" class="form-select filter-select" onchange="filterWords()">
-                    <option value="">Tüm Seviyeler</option>
-                    <option value="easy">Kolay</option>
-                    <option value="medium">Orta</option>
-                    <option value="hard">Zor</option>
-                </select>
+            <div class="words-grid" id="newWordsList">
+                <!-- Word Cards -->
+            </div>
+        </section>
 
-                <!-- View Toggle -->
-                <div class="view-toggle">
-                    <button type="button" class="view-btn active" id="tableViewBtn" onclick="setViewMode('table')">
-                        <i class="bi bi-table"></i>
-                    </button>
-                    <button type="button" class="view-btn" id="cardViewBtn" onclick="setViewMode('card')">
-                        <i class="bi bi-grid-3x3"></i>
-                    </button>
+        <!-- All Words Section -->
+        <section id="all-words" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <div class="title-icon info">
+                        <i class="bi bi-collection"></i>
+                    </div>
+                    <span>Tüm Kelimeler</span>
+                </h2>
+
+                <div class="filters-container">
+                    <div class="search-box">
+                        <i class="bi bi-search"></i>
+                        <input type="text" id="searchInput" class="form-control" placeholder="Kelime ara...">
+                    </div>
+
+                    <select id="categoryFilter" class="form-select">
+                        <option value="">Tüm Kategoriler</option>
+                        <option value="verb">Fiil</option>
+                        <option value="noun">İsim</option>
+                        <option value="adjective">Sıfat</option>
+                    </select>
+
+                    <select id="difficultyFilter" class="form-select">
+                        <option value="">Tüm Seviyeler</option>
+                        <option value="easy">Kolay</option>
+                        <option value="medium">Orta</option>
+                        <option value="hard">Zor</option>
+                    </select>
+
+                    <div class="view-toggle">
+                        <button class="view-btn active" onclick="setViewMode('grid')">
+                            <i class="bi bi-grid-3x3-gap"></i>
+                        </button>
+                        <button class="view-btn" onclick="setViewMode('list')">
+                            <i class="bi bi-list-ul"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Table View -->
-        <div id="tableView" class="table-container">
-            <div class="table-responsive">
+            <!-- Table View -->
+            <div id="listView" class="table-container" style="display: none;">
                 <table class="words-table">
                     <thead>
                     <tr>
@@ -384,9 +395,8 @@
                         <th>Çeviri</th>
                         <th>Kategori</th>
                         <th>Seviye</th>
-                        <th class="text-center">Doğru</th>
-                        <th class="text-center">Yanlış</th>
-                        <th class="text-center">İşlemler</th>
+                        <th>Durum</th>
+                        <th>İşlemler</th>
                     </tr>
                     </thead>
                     <tbody id="wordsTableBody">
@@ -394,65 +404,52 @@
                     </tbody>
                 </table>
             </div>
-        </div>
 
-        <!-- Card View -->
-        <div id="cardView" class="row" style="display: none;">
-            <!-- Dynamically generated -->
-        </div>
-
-        <!-- Load More Button -->
-        <div class="load-more-container">
-            <button id="loadMoreBtn" class="btn btn-load-more" onclick="loadMoreWords()" style="display: none;">
-                <span class="spinner-border spinner-border-sm me-2 d-none" id="loadMoreSpinner"></span>
-                Daha Fazla Yükle
-            </button>
-        </div>
-
-        <!-- Infinite Scroll Trigger -->
-        <div class="infinite-scroll-trigger" id="scrollTrigger">
-            <div class="loading-spinner d-none">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Yükleniyor...</span>
-                </div>
+            <!-- Grid View -->
+            <div id="gridView" class="words-grid">
+                <!-- Dynamically generated -->
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- Add Word Section -->
-    <section id="add-word" class="content-section" style="display: none;">
-        <div class="row justify-content-center">
-            <div class="col-xl-6 col-lg-8 col-md-10">
-                <div class="add-word-card">
-                    <div class="add-word-header">
-                        <h4 class="mb-0">
-                            <i class="bi bi-plus-circle me-2"></i>
+        <!-- Add Word Section -->
+        <section id="add-word" class="content-section" style="display: none;">
+            <div class="form-container">
+                <div class="form-card">
+                    <div class="form-header">
+                        <h4 class="form-title">
+                            <i class="bi bi-plus-circle-fill"></i>
                             Yeni Kelime Ekle
                         </h4>
                     </div>
-                    <div class="add-word-body">
-                        <form id="addWordForm">
-                            <div class="form-group">
-                                <label for="wordInput" class="form-label">
-                                    <i class="bi bi-chat-square-text me-1"></i>
-                                    Kelime
-                                </label>
-                                <input type="text" class="form-control" id="wordInput" placeholder="Örn: hola" required>
-                            </div>
 
-                            <div class="form-group">
-                                <label for="translationInput" class="form-label">
-                                    <i class="bi bi-translate me-1"></i>
-                                    Çeviri
-                                </label>
-                                <input type="text" class="form-control" id="translationInput" placeholder="Örn: merhaba" required>
+                    <div class="form-body">
+                        <form id="addWordForm">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">
+                                            <i class="bi bi-translate"></i>
+                                            Kelime
+                                        </label>
+                                        <input type="text" class="form-control" id="wordInput" placeholder="Örn: hola" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">
+                                            <i class="bi bi-chat-left-text"></i>
+                                            Çeviri
+                                        </label>
+                                        <input type="text" class="form-control" id="translationInput" placeholder="Örn: merhaba" required>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        <label for="categoryInput" class="form-label">
-                                            <i class="bi bi-tag me-1"></i>
+                                        <label class="form-label">
+                                            <i class="bi bi-tag"></i>
                                             Kategori
                                         </label>
                                         <select class="form-select" id="categoryInput">
@@ -460,15 +457,13 @@
                                             <option value="noun">İsim</option>
                                             <option value="adjective">Sıfat</option>
                                             <option value="adverb">Zarf</option>
-                                            <option value="other">Diğer</option>
                                         </select>
                                     </div>
                                 </div>
-
                                 <div class="col-md-6">
                                     <div class="form-group">
-                                        <label for="difficultyInput" class="form-label">
-                                            <i class="bi bi-speedometer me-1"></i>
+                                        <label class="form-label">
+                                            <i class="bi bi-speedometer2"></i>
                                             Seviye
                                         </label>
                                         <select class="form-select" id="difficultyInput">
@@ -481,44 +476,41 @@
                             </div>
 
                             <div class="form-group">
-                                <label for="exampleInput" class="form-label">
-                                    <i class="bi bi-chat-left-quote me-1"></i>
-                                    Örnek Cümle <span class="text-muted">(Opsiyonel)</span>
+                                <label class="form-label">
+                                    <i class="bi bi-chat-quote"></i>
+                                    Örnek Cümle
                                 </label>
-                                <textarea class="form-control" id="exampleInput" rows="3" placeholder="Kelimenin kullanıldığı bir cümle yazın..."></textarea>
+                                <textarea class="form-control" id="exampleInput" rows="3" placeholder="Kelimeyi içeren bir örnek cümle yazın..."></textarea>
                             </div>
 
                             <div class="form-group">
-                                <label for="pronunciationInput" class="form-label">
-                                    <i class="bi bi-volume-up me-1"></i>
-                                    Telaffuz <span class="text-muted">(Opsiyonel)</span>
+                                <label class="form-label">
+                                    <i class="bi bi-volume-up"></i>
+                                    Telaffuz
                                 </label>
                                 <input type="text" class="form-control" id="pronunciationInput" placeholder="Örn: [o-la]">
                             </div>
 
-                            <div class="form-group">
-                                <label for="tagsInput" class="form-label">
-                                    <i class="bi bi-tags me-1"></i>
-                                    Etiketler <span class="text-muted">(virgülle ayırın)</span>
-                                </label>
-                                <input type="text" class="form-control" id="tagsInput" placeholder="örn: günlük, seyahat, iş">
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-outline-secondary" onclick="showSection('dashboard')">
+                                    İptal
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-check-circle"></i>
+                                    Kelimeyi Kaydet
+                                </button>
                             </div>
-
-                            <button type="submit" class="btn btn-submit-word">
-                                <i class="bi bi-check-circle me-2"></i>
-                                Kelimeyi Kaydet
-                            </button>
                         </form>
                     </div>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
+    </div>
 </div>
 
 <!-- Scroll to Top Button -->
 <button id="scrollToTop" class="scroll-to-top" onclick="scrollToTop()">
-    <i class="bi bi-arrow-up"></i>
+    <i class="bi bi-arrow-up-short"></i>
 </button>
 
 <!-- Bootstrap JS -->
