@@ -15,7 +15,6 @@ public class WordService {
 
     private final Firestore firestore;
     private static final int PAGE_SIZE = 20; // Sayfa başına kelime sayısı
-    private static final String UNSPLASH_ACCESS_KEY = "YOUR_UNSPLASH_ACCESS_KEY"; // Buraya Unsplash API key'inizi ekleyin
 
     @Autowired
     public WordService(Firestore firestore) {
@@ -78,9 +77,6 @@ public class WordService {
                 .map(doc -> {
                     Word word = doc.toObject(Word.class);
                     word.setId(doc.getId());
-                    if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
-                        word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
-                    }
                     return word;
                 })
                 .collect(Collectors.toList());
@@ -91,49 +87,6 @@ public class WordService {
         result.put("lastWordId", words.isEmpty() ? null : words.get(words.size() - 1).getId());
 
         return result;
-    }
-
-    // Geliştirilmiş görsel URL'si - kelimeyle alakalı
-    private String getEnhancedImageUrl(String keyword, String language) {
-        if (keyword == null || keyword.isEmpty()) {
-            return "";
-        }
-
-        // Kelimeyi temizle
-        String cleanKeyword = keyword.toLowerCase()
-                .replaceAll("[^a-zA-Z0-9\\s]", "")
-                .trim();
-
-        // Dil bazlı çeviri ekle (basit bir mapping)
-        String searchTerm = cleanKeyword;
-        if (language.equals("es")) {
-            searchTerm = translateSpanishToEnglish(cleanKeyword);
-        }
-
-        // Unsplash API kullan (ücretsiz limit: 50 req/hour)
-        // Alternatif olarak Pexels API de kullanılabilir
-        return String.format(
-                "https://source.unsplash.com/400x300/?%s,language,education",
-                searchTerm.replace(" ", ",")
-        );
-    }
-
-    // Basit İspanyolca-İngilizce çeviri mapping'i
-    private String translateSpanishToEnglish(String spanish) {
-        Map<String, String> commonTranslations = new HashMap<>();
-        commonTranslations.put("casa", "house");
-        commonTranslations.put("perro", "dog");
-        commonTranslations.put("gato", "cat");
-        commonTranslations.put("agua", "water");
-        commonTranslations.put("comida", "food");
-        commonTranslations.put("libro", "book");
-        commonTranslations.put("coche", "car");
-        commonTranslations.put("escuela", "school");
-        commonTranslations.put("amigo", "friend");
-        commonTranslations.put("familia", "family");
-        // Daha fazla kelime eklenebilir
-
-        return commonTranslations.getOrDefault(spanish, spanish);
     }
 
     // Migration fonksiyonu güncellendi
@@ -182,10 +135,6 @@ public class WordService {
             if (!data.containsKey("pronunciation")) {
                 updates.put("pronunciation", "");
             }
-            // Yeni görsel URL'si ekle
-            if (!data.containsKey("imageUrl") || data.get("imageUrl") == null) {
-                updates.put("imageUrl", getEnhancedImageUrl(data.get("word").toString(), language));
-            }
 
             if (!updates.isEmpty()) {
                 batch.update(doc.getReference(), updates);
@@ -233,9 +182,6 @@ public class WordService {
                 .map(doc -> {
                     Word word = doc.toObject(Word.class);
                     word.setId(doc.getId());
-                    if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
-                        word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
-                    }
                     return word;
                 })
                 .collect(Collectors.toList());
@@ -259,9 +205,6 @@ public class WordService {
                 .map(doc -> {
                     Word word = doc.toObject(Word.class);
                     word.setId(doc.getId());
-                    if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
-                        word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
-                    }
                     return word;
                 })
                 .collect(Collectors.toList());
@@ -284,12 +227,6 @@ public class WordService {
                 })
                 .filter(word -> word.getCorrectCount() < 3)
                 .limit(20) // Maksimum 20 kelime döndür
-                .map(word -> {
-                    if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
-                        word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
-                    }
-                    return word;
-                })
                 .collect(Collectors.toList());
     }
 
@@ -308,9 +245,6 @@ public class WordService {
                 .map(doc -> {
                     Word word = doc.toObject(Word.class);
                     word.setId(doc.getId());
-                    if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
-                        word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
-                    }
                     return word;
                 })
                 .collect(Collectors.toList());
@@ -360,9 +294,6 @@ public class WordService {
         }
         if (word.getTags() == null || word.getTags().isEmpty()) {
             word.setTags(Arrays.asList("general"));
-        }
-        if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
-            word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
         }
 
         ApiFuture<DocumentReference> future = firestore.collection(collectionName).add(word);
@@ -446,9 +377,6 @@ public class WordService {
                 .map(doc -> {
                     Word word = doc.toObject(Word.class);
                     word.setId(doc.getId());
-                    if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
-                        word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
-                    }
                     return word;
                 })
                 .collect(Collectors.toList());
@@ -476,9 +404,6 @@ public class WordService {
                 .map(doc -> {
                     Word word = doc.toObject(Word.class);
                     word.setId(doc.getId());
-                    if (word.getImageUrl() == null || word.getImageUrl().isEmpty()) {
-                        word.setImageUrl(getEnhancedImageUrl(word.getWord(), language));
-                    }
                     return word;
                 })
                 .collect(Collectors.toList());
